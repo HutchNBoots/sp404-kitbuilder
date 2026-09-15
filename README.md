@@ -82,9 +82,17 @@ listed under "Alternates" instead of being dropped. Unclassified ("Other")
 files are listed per kit but never assigned a pad. Writes:
 
 - `<out>/kits.md` — the source of truth. Each kit has a `## [ ] Kit Name`
-  heading; tick it to `[x]` to approve that kit for export.
+  heading; tick it to `[x]` (or untick it) to change whether it's exported.
 - `<out>/kits.html` — the same report, rendered from the same markdown, for
   easier skimming in a browser.
+
+**Auto-approval.** Kits are listed best-first — fullest kit, then most
+melodic content, then most category variety, then fewest files needing
+format conversion — and the top `auto_approve_top_n` (10 by default) are
+pre-checked `[x]`, so `kitbuilder export` works immediately with no manual
+editing. Untick any you don't want, or tick more, before exporting. Set
+`auto_approve_top_n: 0` in `categories.yaml` to leave everything unchecked
+instead.
 
 **Kit naming.** If a pack's filenames share a consistent, non-generic token
 (e.g. `BB3_hat_closed_sugar.wav`, `BB3_kick_sugar.wav`, ...), that token is

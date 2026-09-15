@@ -37,6 +37,7 @@ def load_config(path: str | Path | None = None) -> dict[str, Any]:
     data.setdefault("core_categories", list(data.get("categories", {}).keys()))
     data.setdefault("melodic_categories", ["Bass", "FX", "Vocal", "Loop"])
     data.setdefault("infer_kit_name_from_filename", True)
+    data.setdefault("auto_approve_top_n", 10)
     data.setdefault("categories", {})
     data.setdefault("exclude_folders", [])
     data.setdefault("extensions", [".wav", ".aiff", ".aif"])

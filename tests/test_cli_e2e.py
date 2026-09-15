@@ -13,6 +13,15 @@ def run_cli(*args):
     return result
 
 
+def _disable_auto_approve(out_dir):
+    """scan writes a categories.yaml copy into out_dir; report reads it by
+    default. Zero out auto_approve_top_n so tests can control checkboxes
+    by hand without the top-N pre-check interfering."""
+    config_path = out_dir / "categories.yaml"
+    text = config_path.read_text(encoding="utf-8")
+    config_path.write_text(text.replace("auto_approve_top_n: 10", "auto_approve_top_n: 0"), encoding="utf-8")
+
+
 def test_full_pipeline_scan_report_export(source_dir, tmp_path):
     out_dir = tmp_path / "kitbuilder_out"
     export_dir = tmp_path / "SP404_Export"
@@ -21,6 +30,7 @@ def test_full_pipeline_scan_report_export(source_dir, tmp_path):
     assert scan.returncode == 0, scan.stderr
     assert (out_dir / "scan_index.json").exists()
     assert (out_dir / "categories.yaml").exists()
+    _disable_auto_approve(out_dir)
 
     report = run_cli("report", "--in", str(out_dir))
     assert report.returncode == 0, report.stderr
@@ -39,6 +49,22 @@ def test_full_pipeline_scan_report_export(source_dir, tmp_path):
     assert (export_dir / "Zander Lowfi Drums" / "Bank_A" / "01_Kick.wav").exists()
     assert (export_dir / "export_manifest.csv").exists()
     assert not (export_dir / "Tiny Pack").exists()
+    assert not (export_dir / "Format Test Pack").exists()  # only the manually-ticked kit exports
+
+
+def test_auto_approve_exports_best_kits_with_no_manual_edits(source_dir, tmp_path):
+    out_dir = tmp_path / "kitbuilder_out"
+    export_dir = tmp_path / "SP404_Export"
+
+    run_cli("scan", "--source", str(source_dir), "--out", str(out_dir))
+    report = run_cli("report", "--in", str(out_dir))
+    assert "auto-approved" in report.stdout.lower()
+
+    # no manual edits to kits.md at all — export should still do something,
+    # because the best kits were pre-checked by `report`
+    export = run_cli("export", "--in", str(out_dir), "--out", str(export_dir))
+    assert export.returncode == 0, export.stderr
+    assert (export_dir / "Zander Lowfi Drums" / "Bank_A" / "01_Kick.wav").exists()
 
 
 def test_dry_run_flags_write_nothing(source_dir, tmp_path):
@@ -50,6 +76,7 @@ def test_dry_run_flags_write_nothing(source_dir, tmp_path):
 
     # need a real scan to proceed to report/export dry-run checks
     run_cli("scan", "--source", str(source_dir), "--out", str(out_dir))
+    _disable_auto_approve(out_dir)
     report_dry = run_cli("report", "--in", str(out_dir), "--dry-run")
     assert report_dry.returncode == 0, report_dry.stderr
     assert not (out_dir / KITS_MD_FILENAME).exists()
@@ -69,6 +96,7 @@ def test_no_kits_checked_is_a_noop(source_dir, tmp_path):
     out_dir = tmp_path / "kitbuilder_out"
     export_dir = tmp_path / "SP404_Export"
     run_cli("scan", "--source", str(source_dir), "--out", str(out_dir))
+    _disable_auto_approve(out_dir)
     run_cli("report", "--in", str(out_dir))
 
     export = run_cli("export", "--in", str(out_dir), "--out", str(export_dir))

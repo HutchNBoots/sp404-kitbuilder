@@ -50,6 +50,14 @@ melodic_categories: [Bass, FX, Vocal, Loop]
 # always use the pack folder name.
 infer_kit_name_from_filename: true
 
+# After scanning, the report ranks every complete kit (fullest pad count
+# first, then most melodic content, then most category variety, then
+# fewest files needing format conversion) and pre-checks ([x]) this many
+# of the best ones so `export` can be run immediately without hand-ticking
+# boxes. The rest stay unchecked ([ ]) for you to review. Set to 0 to
+# leave everything unchecked, as before.
+auto_approve_top_n: 10
+
 # Ordered category -> keyword list. Order matters twice over:
 # - it's the priority order used to break "matches >1 category" ties
 # - it's the pad-fill priority within core_categories/melodic_categories

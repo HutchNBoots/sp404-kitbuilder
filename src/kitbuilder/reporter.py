@@ -46,9 +46,29 @@ def _alternates_table(alternates: dict[str, list[dict[str, Any]]]) -> str:
     return "\n".join(lines)
 
 
-def _render_kit(kit_dict: dict[str, Any]) -> str:
+def _rank_key(kit: Kit) -> tuple:
+    """Best-first sort key: fullest kit, then most melodic content, then
+    most category variety, then fewest files needing format conversion,
+    then name (for a fully deterministic order)."""
+    needs_conversion_count = sum(pad.needs_conversion for bank in kit.banks for pad in bank)
+    return (
+        -kit.total_pads_used,
+        -kit.melodic_pads_used,
+        -kit.distinct_category_count,
+        needs_conversion_count,
+        kit.name.lower(),
+    )
+
+
+def rank_complete_kits(kits: list[Kit]) -> list[Kit]:
+    """Complete (non-incomplete) kits only, best first — see _rank_key."""
+    return sorted((k for k in kits if not k.weak), key=_rank_key)
+
+
+def _render_kit(kit_dict: dict[str, Any], checked: bool) -> str:
+    box = "x" if checked else " "
     parts = [
-        f"## [ ] {kit_dict['name']}  ({kit_dict['total_pads_used']} pads, Bank A)",
+        f"## [{box}] {kit_dict['name']}  ({kit_dict['total_pads_used']} pads, Bank A)",
         "",
     ]
 
@@ -79,7 +99,12 @@ def _render_kit(kit_dict: dict[str, Any]) -> str:
     return "\n".join(parts)
 
 
-def _summary(complete: list[dict[str, Any]], skipped: list[dict[str, Any]], scan_index: dict[str, Any]) -> str:
+def _summary(
+    complete: list[dict[str, Any]],
+    skipped: list[dict[str, Any]],
+    auto_approved_count: int,
+    scan_index: dict[str, Any],
+) -> str:
     packs_scanned = len({r["pack"] for r in scan_index["files"]})
     unclassified_total = sum(len(k["unclassified"]) for k in complete)
     needs_conversion_total = sum(1 for r in scan_index["files"] if r["needs_conversion"])
@@ -91,8 +116,10 @@ def _summary(complete: list[dict[str, Any]], skipped: list[dict[str, Any]], scan
         f"_Source: `{scan_index['source']}`_",
         "",
         "Only complete kits (at least one Kick, one Snare, and one Hat) are "
-        "proposed below. Incomplete ones are skipped — see the list at the "
-        "bottom, or `scan_index.json`, to hand-assemble them yourself.",
+        "proposed below, best first (fullest kit, then most melodic content, "
+        "then most variety, then fewest files needing format conversion). "
+        "Incomplete ones are skipped — see the list at the bottom, or "
+        "`scan_index.json`, to hand-assemble them yourself.",
         "",
         "## Summary",
         "",
@@ -100,13 +127,15 @@ def _summary(complete: list[dict[str, Any]], skipped: list[dict[str, Any]], scan
         "|---|---|",
         f"| Packs scanned | {packs_scanned} |",
         f"| Kits proposed | {len(complete)} |",
+        f"| Auto-approved (best {auto_approved_count}) | {auto_approved_count} |",
         f"| Kits skipped (missing Kick/Snare/Hat) | {len(skipped)} |",
         f"| Unclassified files (total) | {unclassified_total} |",
         f"| Files needing format conversion | {needs_conversion_total} |",
         f"| Ambiguous classifications (see scan_index.json) | {ambiguous_total} |",
         "",
-        "Tick `[ ]` to `[x]` on the kits you want exported, save this file, "
-        "then run `kitbuilder export`.",
+        f"The best {auto_approved_count} kits below are already ticked `[x]` — "
+        "just run `kitbuilder export` to use them as-is, or tick `[ ]` to `[x]` "
+        "(or the reverse) on any others first, save, then export.",
         "",
         "---",
         "",
@@ -127,12 +156,13 @@ def _skipped_section(skipped: list[dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
-def build_markdown(kits: list[Kit], scan_index: dict[str, Any]) -> str:
-    kit_dicts = [k.to_dict() for k in kits]
-    complete = [k for k in kit_dicts if not k["weak"]]
-    skipped = [k for k in kit_dicts if k["weak"]]
-    sections = [_summary(complete, skipped, scan_index)]
-    sections += [_render_kit(k) for k in complete]
+def build_markdown(kits: list[Kit], scan_index: dict[str, Any], config: dict[str, Any]) -> str:
+    complete = [k.to_dict() for k in rank_complete_kits(kits)]
+    skipped = [k.to_dict() for k in kits if k.weak]
+
+    auto_approved_count = min(config["auto_approve_top_n"], len(complete))
+    sections = [_summary(complete, skipped, auto_approved_count, scan_index)]
+    sections += [_render_kit(k, checked=(i < auto_approved_count)) for i, k in enumerate(complete)]
     sections.append(_skipped_section(skipped))
     return "\n".join(sections)
 
@@ -149,10 +179,12 @@ def build_html(markdown_text: str) -> str:
     )
 
 
-def write_report(kits: list[Kit], scan_index: dict[str, Any], out_dir: str | Path) -> tuple[Path, Path]:
+def write_report(
+    kits: list[Kit], scan_index: dict[str, Any], out_dir: str | Path, config: dict[str, Any]
+) -> tuple[Path, Path]:
     out_path = Path(out_dir)
     out_path.mkdir(parents=True, exist_ok=True)
-    markdown_text = build_markdown(kits, scan_index)
+    markdown_text = build_markdown(kits, scan_index, config)
     html_text = build_html(markdown_text)
 
     md_path = out_path / KITS_MD_FILENAME

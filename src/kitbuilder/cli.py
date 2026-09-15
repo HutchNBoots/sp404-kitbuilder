@@ -11,7 +11,7 @@ from typing import Any
 from kitbuilder import config as config_mod
 from kitbuilder.assembler import assemble_kits
 from kitbuilder.exporter import export_kits, load_approved_and_kits, write_manifest
-from kitbuilder.reporter import write_report
+from kitbuilder.reporter import rank_complete_kits, write_report
 from kitbuilder.scanner import load_scan_index, scan_source, write_scan_index
 
 
@@ -59,21 +59,28 @@ def cmd_report(args: argparse.Namespace) -> int:
     kits = assemble_kits(scan_index, config)
 
     incomplete = sum(1 for k in kits if k.weak)
+    ranked = rank_complete_kits(kits)
+    auto_approved_count = min(config["auto_approve_top_n"], len(ranked))
+    auto_approved_names = {k.name for k in ranked[:auto_approved_count]}
+
     print(f"Assembled {len(kits)} candidate kit(s) from {scan_index['file_count']} scanned files.")
-    print(f"  Proposed in kits.md: {len(kits) - incomplete}")
+    print(f"  Proposed in kits.md: {len(ranked)} (best {auto_approved_count} auto-approved)")
     print(f"  Skipped — incomplete, missing Kick/Snare/Hat: {incomplete}")
+    for k in ranked:
+        print(f"  - {k.name}: {k.total_pads_used} pads{' [AUTO-APPROVED]' if k.name in auto_approved_names else ''}")
     for k in kits:
-        flag = f" [SKIPPED: missing {', '.join(k.missing_basics)}]" if k.weak else ""
-        print(f"  - {k.name}: {k.total_pads_used} pads{flag}")
+        if k.weak:
+            print(f"  - {k.name}: {k.total_pads_used} pads [SKIPPED: missing {', '.join(k.missing_basics)}]")
 
     if args.dry_run:
         print("[dry-run] kits.md / kits.html not written.")
         return 0
 
-    md_path, html_path = write_report(kits, scan_index, args.in_dir)
+    md_path, html_path = write_report(kits, scan_index, args.in_dir, config)
     print(f"Wrote {md_path}")
     print(f"Wrote {html_path}")
-    print("Edit kits.md, tick [x] on the kits you approve, then run `kitbuilder export`.")
+    print(f"The best {auto_approved_count} kits are already checked — run `kitbuilder export` to use them as-is,")
+    print("or edit kits.md to check/uncheck kits first, then run `kitbuilder export`.")
     return 0
 
 
