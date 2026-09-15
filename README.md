@@ -32,6 +32,33 @@ unpacked via `python -m kitbuilder ...` in place of `kitbuilder ...`.
 
 ## Usage
 
+### The simple way: just run `kitbuilder`
+
+With `default_source` set in `categories.yaml` (see below), running the tool
+with no arguments at all does everything in one command, from the folder you
+want the working files in:
+
+```
+kitbuilder
+```
+
+It scans `default_source`, writes the report into `.\kitbuilder_out`, then
+asks two questions:
+
+```
+Review the proposed kits now (opens kits.html in your browser)? [Y/n]
+Export approved kits to .\sp404_kits? [Y/n]
+```
+
+Answer the first `y` to look over the auto-approved kits in your browser
+before committing. Answer the second `y` to copy them into `.\sp404_kits` in
+the current directory. Say `n` to either and re-run that step later —
+nothing is lost. `kitbuilder --source "C:\some\other\packs"` works the same
+way with a one-off source override; `kitbuilder run --workdir X --out Y` if
+you want to change the folder names too.
+
+### The manual way: one subcommand per phase
+
 ```bash
 kitbuilder scan   --source "C:\Users\you\Documents\Splice\sounds\packs" --out .\kitbuilder_out
 kitbuilder report --in .\kitbuilder_out
@@ -39,9 +66,11 @@ kitbuilder report --in .\kitbuilder_out
 kitbuilder export --in .\kitbuilder_out --out "C:\SP404_Export"
 ```
 
-Add `--dry-run` to any of the three subcommands to see what it *would* do
-(counts, planned copies) without writing anything — handy for iterating on
-`categories.yaml` before committing to a real run.
+Useful when you want to hand-edit `kits.md` or `categories.yaml` between
+steps rather than answering `run`'s prompts. Add `--dry-run` to any of the
+three subcommands to see what it *would* do (counts, planned copies) without
+writing anything — handy for iterating on `categories.yaml` before
+committing to a real run.
 
 ### `scan --source <folder> --out <folder> [--config categories.yaml] [--dry-run]`
 
@@ -154,12 +183,15 @@ original flat `<Kit Name>/Bank_A/...` layout.
 The classification keyword map, required-basics list, core/melodic category
 groupings, per-category variation cap, reserved melodic-pad count,
 library-wide melodic auto-fill toggle (and its `random_seed`), kit-name
-inference toggle, excluded subfolders, and accepted extensions all live in
-`categories.yaml`. `scan` copies its resolved config into
-`<out>/categories.yaml`; edit that copy and re-run `report` (no `--config`
-flag needed — it's picked up automatically) to retune classification without
-rescanning. Pass an explicit `--config /path/to/file.yaml` to any subcommand
-to override that lookup.
+inference toggle, default Splice source folder, excluded subfolders, and
+accepted extensions all live in `categories.yaml`. `scan` copies its
+resolved config into `<out>/categories.yaml`; edit that copy and re-run
+`report` (no `--config` flag needed — it's picked up automatically) to
+retune classification without rescanning. Pass an explicit
+`--config /path/to/file.yaml` to any subcommand to override that lookup.
+
+`default_source` is baked into the packaged config as a personal default —
+change it if your Splice library moves, or override per-run with `--source`.
 
 ## Importing into the SP-404 MKII (manual, by design)
 

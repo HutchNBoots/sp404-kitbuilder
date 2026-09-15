@@ -2,6 +2,11 @@
 # Copy this file, edit it, and pass --config /path/to/your.yaml to
 # `kitbuilder scan` or `kitbuilder report` to override without touching code.
 
+# Splice packs folder used by `kitbuilder run` (or `kitbuilder` with no
+# subcommand) and by `scan`/`export` when --source/--out are omitted.
+# Change this if your library lives somewhere else.
+default_source: "C:\\Users\\ALEXHUTCHINGS\\onedrive\\Documents\\Splice\\samples\\packs"
+
 pads_per_bank: 16
 
 # Every kit lives on exactly one bank. Pads beyond pads_per_bank never

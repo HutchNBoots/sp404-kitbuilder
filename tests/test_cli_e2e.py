@@ -4,11 +4,13 @@ import sys
 from kitbuilder.reporter import KITS_MD_FILENAME
 
 
-def run_cli(*args):
+def run_cli(*args, cwd=None, stdin_text=None):
     result = subprocess.run(
         [sys.executable, "-m", "kitbuilder", *args],
         capture_output=True,
         text=True,
+        cwd=cwd,
+        input=stdin_text,
     )
     return result
 
@@ -107,6 +109,53 @@ def test_kits_per_project_flag_groups_into_project_folders(source_dir, tmp_path)
     assert not (export_dir / "Project_1" / "Bank_01_Zander Lowfi Drums" / "Bank_A").exists()
     assert (export_dir / "Project_3").is_dir()  # 5 kits / 2 per project -> 3 projects
     assert not (export_dir / "Zander Lowfi Drums").exists()  # no flat layout when grouping
+
+
+def test_bare_invocation_runs_scan_report_and_prompts(source_dir, tmp_path):
+    result = run_cli("--source", str(source_dir), cwd=tmp_path, stdin_text="n\nn\n")
+    assert result.returncode == 0, result.stderr
+    assert (tmp_path / "kitbuilder_out" / "kits.md").exists()
+    assert "Review the proposed kits now" in result.stdout
+    assert "Export approved kits to" in result.stdout
+    assert not (tmp_path / "sp404_kits").exists()  # declined the export prompt
+
+
+def test_run_subcommand_exports_into_sp404_kits_on_yes(source_dir, tmp_path):
+    result = run_cli("run", "--source", str(source_dir), cwd=tmp_path, stdin_text="n\ny\n")
+    assert result.returncode == 0, result.stderr
+    assert (tmp_path / "sp404_kits" / "Zander Lowfi Drums" / "Bank_A" / "01_Kick.wav").exists()
+    assert (tmp_path / "sp404_kits" / "export_manifest.csv").exists()
+
+
+def test_run_subcommand_respects_workdir_and_out_overrides(source_dir, tmp_path):
+    result = run_cli(
+        "run", "--source", str(source_dir), "--workdir", "custom_work", "--out", "custom_export",
+        cwd=tmp_path, stdin_text="n\ny\n",
+    )
+    assert result.returncode == 0, result.stderr
+    assert (tmp_path / "custom_work" / "kits.md").exists()
+    assert (tmp_path / "custom_export" / "export_manifest.csv").exists()
+
+
+def test_run_without_source_or_default_source_errors_clearly(tmp_path):
+    # packaged categories.yaml ships with a personal default_source, so
+    # isolate this test with a config that has none set
+    no_default_config = tmp_path / "no_default.yaml"
+    no_default_config.write_text("default_source: ''\n", encoding="utf-8")
+
+    result = run_cli("run", "--config", str(no_default_config), cwd=tmp_path, stdin_text="n\nn\n")
+    assert result.returncode != 0
+    assert "default_source" in result.stderr
+
+
+def test_scan_falls_back_to_default_source_when_omitted(source_dir, tmp_path):
+    config_path = tmp_path / "with_default.yaml"
+    config_path.write_text(f"default_source: '{source_dir}'\n", encoding="utf-8")
+
+    out_dir = tmp_path / "kitbuilder_out"
+    result = run_cli("scan", "--config", str(config_path), "--out", str(out_dir), cwd=tmp_path)
+    assert result.returncode == 0, result.stderr
+    assert (out_dir / "scan_index.json").exists()
 
 
 def test_no_kits_checked_is_a_noop(source_dir, tmp_path):

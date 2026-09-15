@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import shutil
 import sys
+import webbrowser
 from pathlib import Path
 from typing import Any
 
@@ -25,9 +26,31 @@ def _resolve_config(explicit: str | None, in_dir: str | Path | None) -> dict[str
     return config_mod.load_config(None)
 
 
+def _resolve_source(explicit: str | None, config: dict[str, Any]) -> str:
+    source = explicit or config.get("default_source") or ""
+    if not source:
+        print(
+            "No --source given and no default_source set in categories.yaml — "
+            "pass --source, or add default_source to your config.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    return source
+
+
+def _prompt_yes_no(question: str, default_yes: bool = True) -> bool:
+    suffix = " [Y/n] " if default_yes else " [y/N] "
+    try:
+        answer = input(question + suffix).strip().lower()
+    except EOFError:
+        return default_yes
+    return default_yes if not answer else answer.startswith("y")
+
+
 def cmd_scan(args: argparse.Namespace) -> int:
     config = config_mod.load_config(args.config)
-    records = scan_source(args.source, config)
+    source = _resolve_source(args.source, config)
+    records = scan_source(source, config)
 
     categories_seen: dict[str, int] = {}
     for r in records:
@@ -44,7 +67,7 @@ def cmd_scan(args: argparse.Namespace) -> int:
         print("[dry-run] scan_index.json not written.")
         return 0
 
-    index_path = write_scan_index(records, args.out, args.source)
+    index_path = write_scan_index(records, args.out, source)
     config_copy = Path(args.out) / config_mod.DEFAULT_CONFIG_FILENAME
     source_config = Path(args.config) if args.config else config_mod.packaged_default_config_path()
     shutil.copyfile(source_config, config_copy)
@@ -117,6 +140,41 @@ def cmd_export(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_run(args: argparse.Namespace) -> int:
+    """scan -> report -> (ask to review) -> (ask to export), one command."""
+    config = config_mod.load_config(args.config)
+    source = _resolve_source(args.source, config)
+    workdir = args.workdir
+    export_dir = args.out or "sp404_kits"
+
+    print(f"Source:  {source}")
+    print(f"Workdir: {workdir}\n")
+
+    scan_ns = argparse.Namespace(source=source, out=workdir, config=args.config, dry_run=False)
+    if cmd_scan(scan_ns) != 0:
+        return 1
+
+    print()
+    report_ns = argparse.Namespace(in_dir=workdir, config=args.config, dry_run=False)
+    if cmd_report(report_ns) != 0:
+        return 1
+
+    kits_html = Path(workdir) / "kits.html"
+    print()
+    if kits_html.exists() and _prompt_yes_no("Review the proposed kits now (opens kits.html in your browser)?"):
+        webbrowser.open(kits_html.resolve().as_uri())
+
+    print()
+    if _prompt_yes_no(f"Export approved kits to .\\{export_dir}?"):
+        export_ns = argparse.Namespace(
+            in_dir=workdir, out=export_dir, config=args.config, dry_run=False, kits_per_project=None
+        )
+        return cmd_export(export_ns)
+
+    print(f"Skipped export. Re-run any time with: kitbuilder export --in {workdir} --out {export_dir}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="kitbuilder",
@@ -125,7 +183,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     scan_p = subparsers.add_parser("scan", help="Phase 1: scan --source and write scan_index.json")
-    scan_p.add_argument("--source", required=True, help="Root folder of Splice packs")
+    scan_p.add_argument("--source", help="Root folder of Splice packs (default: default_source in categories.yaml)")
     scan_p.add_argument("--out", required=True, help="Working output folder")
     scan_p.add_argument("--config", help="Path to a categories.yaml override")
     scan_p.add_argument("--dry-run", action="store_true", help="Print a summary; write nothing")
@@ -153,12 +211,30 @@ def build_parser() -> argparse.ArgumentParser:
     )
     export_p.set_defaults(func=cmd_export)
 
+    run_p = subparsers.add_parser(
+        "run", help="scan + report, then ask to review and ask to export — one command"
+    )
+    run_p.add_argument("--source", help="Root folder of Splice packs (default: default_source in categories.yaml)")
+    run_p.add_argument("--workdir", default="kitbuilder_out", help="Working folder for scan/report output")
+    run_p.add_argument("--out", help="Export destination folder (default: .\\sp404_kits)")
+    run_p.add_argument("--config", help="Path to a categories.yaml override")
+    run_p.set_defaults(func=cmd_run)
+
     return parser
 
 
+_SUBCOMMANDS = {"scan", "report", "export", "run"}
+
+
 def main(argv: list[str] | None = None) -> int:
+    raw_argv = sys.argv[1:] if argv is None else argv
+    # Bare `kitbuilder`, or `kitbuilder --some-flag`, defaults to `run`
+    # (scan + report + ask to review + ask to export) so no subcommand is
+    # needed for the common case.
+    if not raw_argv or (raw_argv[0] not in _SUBCOMMANDS and raw_argv[0] not in ("-h", "--help")):
+        raw_argv = ["run", *raw_argv]
     parser = build_parser()
-    args = parser.parse_args(argv)
+    args = parser.parse_args(raw_argv)
     return args.func(args)
 
 
