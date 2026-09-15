@@ -62,11 +62,41 @@ def test_melodic_pads_reserved_and_used(source_dir, config):
     assert {p.category for p in melodic_pads} == {"Bass", "FX", "Vocal", "Loop"}
 
 
-def test_melodic_pads_left_free_when_absent(source_dir, config):
+def test_melodic_pads_auto_filled_from_library_by_default(source_dir, config):
+    kits = _kits(source_dir, config)
+    tiny = kits["Tiny Pack"]  # has no Bass/FX/Vocal/Loop of its own
+    assert tiny.melodic_pads_used == 4  # backfilled from elsewhere in the library
+    assert tiny.total_pads_used == 6  # Kick + Snare + 4 filler melodic
+    melodic_pads = tiny.banks[0][-4:]
+    assert all(p.filler for p in melodic_pads)
+    # fillers never come from Tiny Pack's own (empty) melodic pool
+    assert all(p.filename not in {"kick_01.wav", "snare_01.wav"} for p in melodic_pads)
+
+
+def test_melodic_pads_left_free_when_auto_fill_disabled(source_dir, config):
+    config = {**config, "auto_fill_melodic_from_library": False}
     kits = _kits(source_dir, config)
     tiny = kits["Tiny Pack"]
     assert tiny.melodic_pads_used == 0
     assert tiny.total_pads_used == 2  # Kick + Snare only, no melodic backfill
+
+
+def test_melodic_auto_fill_respects_max_variations_per_category(source_dir, config):
+    kits = _kits(source_dir, config)
+    tiny = kits["Tiny Pack"]
+    melodic_pads = tiny.banks[0][-4:]
+    counts = {}
+    for p in melodic_pads:
+        counts[p.category] = counts.get(p.category, 0) + 1
+    assert all(count <= config["max_variations_per_category"] for count in counts.values())
+
+
+def test_melodic_auto_fill_is_deterministic(source_dir, config):
+    kits_a = _kits(source_dir, config)
+    kits_b = _kits(source_dir, config)
+    a = [(p.category, p.filename) for p in kits_a["Tiny Pack"].banks[0][-4:]]
+    b = [(p.category, p.filename) for p in kits_b["Tiny Pack"].banks[0][-4:]]
+    assert a == b
 
 
 def test_unclassified_not_assigned_a_pad(source_dir, config):
@@ -92,11 +122,12 @@ def test_filename_kit_name_inference_splits_multi_kit_pack(source_dir, config):
 
     sugar = kits["Drum Bundle — Sugar"]
     assert sugar.weak is False
-    filenames = {p.filename for bank in sugar.banks for p in bank}
-    assert filenames == {"BB3_kick_sugar.wav", "BB3_snare_sugar.wav", "BB3_hat_closed_sugar.wav", "BB3_clap_sugar.wav"}
+    native_filenames = {p.filename for bank in sugar.banks for p in bank if not p.filler}
+    assert native_filenames == {"BB3_kick_sugar.wav", "BB3_snare_sugar.wav", "BB3_hat_closed_sugar.wav", "BB3_clap_sugar.wav"}
 
     leftover = kits["Drum Bundle"]
-    assert {p.filename for bank in leftover.banks for p in bank} == {"random_fx_noise.wav"}
+    native_leftover = {p.filename for bank in leftover.banks for p in bank if not p.filler}
+    assert native_leftover == {"random_fx_noise.wav"}
 
 
 def test_filename_kit_name_inference_renames_single_kit(source_dir, config):

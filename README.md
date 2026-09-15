@@ -72,10 +72,18 @@ bank:
    `Kick 2`, never `Kick 3`), up to a ceiling of `pads_per_bank -
    reserved_melodic_pads` (12 by default).
 3. **The last `reserved_melodic_pads` pads** (4 by default) are set aside
-   for `melodic_categories` content (Bass, FX, Vocal, Loop) if the pack has
-   any — otherwise they're left free on purpose, ready for you to drop in
-   your own melodic one-shots later. They're never backfilled with extra
-   drum/perc variations.
+   for `melodic_categories` content (Bass, FX, Vocal, Loop): the pack's own
+   files first, then — since `auto_fill_melodic_from_library` defaults to
+   true — any pads still empty get randomly filled with melodic samples
+   from *anywhere else in the scanned library* (still capped at
+   `max_variations_per_category` per category). Auto-filled pads are
+   clearly marked 🎲 in the report, with the real source path right there
+   so you can tell at a glance and swap out anything you don't want. Only
+   pads that are still empty after both passes (the whole library came up
+   short) are left free for you to drop your own melodic samples in later.
+   They're never backfilled with extra drum/perc variations. Set
+   `auto_fill_melodic_from_library: false` to go back to leaving unfilled
+   pads empty.
 
 Anything that doesn't fit (per-category cap, or the two ceilings above) is
 listed under "Alternates" instead of being dropped. Unclassified ("Other")
@@ -144,7 +152,8 @@ original flat `<Kit Name>/Bank_A/...` layout.
 ## Config (`categories.yaml`)
 
 The classification keyword map, required-basics list, core/melodic category
-groupings, per-category variation cap, reserved melodic-pad count, kit-name
+groupings, per-category variation cap, reserved melodic-pad count,
+library-wide melodic auto-fill toggle (and its `random_seed`), kit-name
 inference toggle, excluded subfolders, and accepted extensions all live in
 `categories.yaml`. `scan` copies its resolved config into
 `<out>/categories.yaml`; edit that copy and re-run `report` (no `--config`
@@ -214,3 +223,9 @@ this repo (or `pip install`) there and run `kitbuilder scan --source
   labels each independently satisfy the Kick/Snare/Hat basics — otherwise it
   falls back to the plain folder name. Turn it off with
   `infer_kit_name_from_filename: false` if it ever mis-groups your files.
+- Melodic auto-fill picks are deterministic per kit name + `random_seed`
+  (not per-run), so re-running `report` without changing anything gives the
+  same fillers — but doesn't dedupe a chosen file across *different* kits,
+  so with a small library the same melodic sample can legitimately end up
+  filling a slot in several kits. A real Splice library has enough variety
+  that this mostly won't come up in practice.

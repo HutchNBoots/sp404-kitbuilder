@@ -44,6 +44,20 @@ core_categories:
 # Only these categories are eligible to fill the reserved melodic pads.
 melodic_categories: [Bass, FX, Vocal, Loop]
 
+# If a kit's reserved melodic pads aren't fully used by its own pack's
+# Bass/FX/Vocal/Loop files, fill the rest with randomly chosen melodic
+# files from anywhere else in the scanned library (still capped at
+# max_variations_per_category per category, clearly flagged in the report
+# as auto-filled). Set to false to leave those pads empty instead, as
+# before.
+auto_fill_melodic_from_library: true
+
+# Seed for the auto-fill randomness — same library + same seed always picks
+# the same fillers, so re-running `report` doesn't shuffle your kits.md.
+# Change it (or just try a different number) to get a different random
+# selection.
+random_seed: 42
+
 # Try to infer a kit's real name from a shared, non-generic filename token
 # (e.g. "BB3_hat_closed_sugar.wav" -> kit name "Sugar"). Falls back to the
 # pack folder name whenever no confident label is found. Set to false to

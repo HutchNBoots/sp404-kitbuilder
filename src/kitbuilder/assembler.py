@@ -7,9 +7,12 @@ A kit lives on exactly one bank (16 pads). Fill order:
      max_variations_per_category (default 2: e.g. Kick, Kick 2 — never
      Kick 3), up to a ceiling of (pads_per_bank - reserved_melodic_pads).
   3. The last reserved_melodic_pads pads are set aside for melodic_categories
-     content if the pack has any; otherwise they're left free for the user
-     to drop their own melodic samples in later — never backfilled with
-     more drum/perc variations.
+     content: the pack's own Bass/FX/Vocal/Loop files first, then — if
+     auto_fill_melodic_from_library is on and slots are still empty —
+     randomly chosen melodic files from anywhere else in the scanned
+     library, clearly flagged as such. Never backfilled with more drum/perc
+     variations, and any pad still empty after both passes stays free for
+     the user's own melodic samples.
 Overflow beyond those caps/ceilings becomes "alternates". Unclassified
 ("Other") files are listed but never assigned a pad.
 
@@ -20,9 +23,10 @@ the pack folder — see _infer_kit_groups.
 
 from __future__ import annotations
 
+import random
 import re
 from collections import Counter
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
@@ -41,6 +45,7 @@ class FileRef:
     path: str
     format_flags: list[str]
     needs_conversion: bool
+    filler: bool  # True if auto-filled from elsewhere in the library, not the pack's own file
 
 
 @dataclass
@@ -78,7 +83,7 @@ class Kit:
         }
 
 
-def _file_ref(record: dict[str, Any], display_name: str) -> FileRef:
+def _file_ref(record: dict[str, Any], display_name: str, filler: bool = False) -> FileRef:
     return FileRef(
         category=record["category"],
         display_name=display_name,
@@ -86,6 +91,7 @@ def _file_ref(record: dict[str, Any], display_name: str) -> FileRef:
         path=record["path"],
         format_flags=record["format_flags"],
         needs_conversion=record["needs_conversion"],
+        filler=filler,
     )
 
 
@@ -166,7 +172,49 @@ def _infer_kit_groups(
 # --- pad/bank assembly ------------------------------------------------------
 
 
-def _assemble_one_kit(kit_name: str, records: list[dict[str, Any]], config: dict[str, Any]) -> Kit:
+def _backfill_from_library(
+    melodic_assigned: list[FileRef],
+    used_paths: set[str],
+    library_melodic_pool: dict[str, list[dict[str, Any]]],
+    melodic_categories: list[str],
+    reserved_melodic: int,
+    max_variations: int,
+    kit_name: str,
+    random_seed: Any,
+) -> list[FileRef]:
+    needed = reserved_melodic - len(melodic_assigned)
+    if needed <= 0:
+        return melodic_assigned
+
+    category_counts = Counter(ref.category for ref in melodic_assigned)
+    candidates = [
+        (category, record)
+        for category in melodic_categories
+        for record in library_melodic_pool.get(category, [])
+        if record["path"] not in used_paths
+    ]
+    random.Random(f"{random_seed}:{kit_name}").shuffle(candidates)
+
+    filled = list(melodic_assigned)
+    for category, record in candidates:
+        if len(filled) - len(melodic_assigned) >= needed:
+            break
+        if category_counts[category] >= max_variations:
+            continue
+        category_counts[category] += 1
+        count = category_counts[category]
+        display_name = category if count == 1 else f"{category} {count}"
+        filled.append(_file_ref(record, display_name, filler=True))
+        used_paths.add(record["path"])
+    return filled
+
+
+def _assemble_one_kit(
+    kit_name: str,
+    records: list[dict[str, Any]],
+    config: dict[str, Any],
+    library_melodic_pool: dict[str, list[dict[str, Any]]],
+) -> Kit:
     pads_per_bank = config["pads_per_bank"]
     reserved_melodic = config["reserved_melodic_pads"]
     max_variations = config["max_variations_per_category"]
@@ -220,6 +268,21 @@ def _assemble_one_kit(kit_name: str, records: list[dict[str, Any]], config: dict
             melodic_pool.append(ref_at(category, i))
     melodic_assigned, melodic_overflow_refs = melodic_pool[:reserved_melodic], melodic_pool[reserved_melodic:]
 
+    if config["auto_fill_melodic_from_library"]:
+        used_paths = {ref.path for ref in core_pool} | {ref.path for ref in melodic_pool} | {
+            r["path"] for r in unclassified_records
+        }
+        melodic_assigned = _backfill_from_library(
+            melodic_assigned,
+            used_paths,
+            library_melodic_pool,
+            melodic_categories,
+            reserved_melodic,
+            max_variations,
+            kit_name,
+            config["random_seed"],
+        )
+
     all_assigned = core_assigned + melodic_assigned
     bank = [
         PadAssignment(
@@ -229,6 +292,7 @@ def _assemble_one_kit(kit_name: str, records: list[dict[str, Any]], config: dict
             path=ref.path,
             format_flags=ref.format_flags,
             needs_conversion=ref.needs_conversion,
+            filler=ref.filler,
             pad=i,
         )
         for i, ref in enumerate(all_assigned, start=1)
@@ -259,13 +323,27 @@ def _assemble_one_kit(kit_name: str, records: list[dict[str, Any]], config: dict
     )
 
 
+def _build_library_melodic_pool(
+    scan_index: dict[str, Any], melodic_categories: list[str]
+) -> dict[str, list[dict[str, Any]]]:
+    pool: dict[str, list[dict[str, Any]]] = {}
+    for record in scan_index["files"]:
+        if record["category"] in melodic_categories:
+            pool.setdefault(record["category"], []).append(record)
+    for files in pool.values():
+        files.sort(key=lambda r: r["filename"])
+    return pool
+
+
 def assemble_kits(scan_index: dict[str, Any], config: dict[str, Any]) -> list[Kit]:
     by_pack: dict[str, list[dict[str, Any]]] = {}
     for record in scan_index["files"]:
         by_pack.setdefault(record["pack"], []).append(record)
 
+    library_melodic_pool = _build_library_melodic_pool(scan_index, config["melodic_categories"])
+
     kits = []
     for pack_name, records in by_pack.items():
         for kit_name, kit_records in _infer_kit_groups(pack_name, records, config):
-            kits.append(_assemble_one_kit(kit_name, kit_records, config))
+            kits.append(_assemble_one_kit(kit_name, kit_records, config, library_melodic_pool))
     return sorted(kits, key=lambda k: k.name.lower())

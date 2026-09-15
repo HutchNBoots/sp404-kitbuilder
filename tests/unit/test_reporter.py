@@ -31,11 +31,20 @@ def test_incomplete_kits_are_not_proposed(source_dir, config):
     assert "Skipped (incomplete" in markdown_text
 
 
-def test_markdown_notes_free_melodic_pads(source_dir, config):
+def test_markdown_notes_free_melodic_pads_when_auto_fill_disabled(source_dir, config):
+    scan_index = _scan_index(source_dir, config)
+    no_fill_config = {**_no_auto_approve(config), "auto_fill_melodic_from_library": False}
+    kits = assemble_kits(scan_index, no_fill_config)
+    markdown_text = build_markdown(kits, scan_index, no_fill_config)
+    assert "left free for your own melodic samples" in markdown_text
+
+
+def test_markdown_notes_auto_filled_melodic_pads_by_default(source_dir, config):
     scan_index = _scan_index(source_dir, config)
     kits = assemble_kits(scan_index, config)
     markdown_text = build_markdown(kits, scan_index, _no_auto_approve(config))
-    assert "left free for your own melodic samples" in markdown_text
+    assert "auto-filled with random samples from elsewhere in your" in markdown_text
+    assert "🎲 auto-filled from library" in markdown_text
 
 
 def test_html_is_derived_from_markdown_and_has_tables(source_dir, config):

@@ -27,10 +27,14 @@ def _escape_cell(text: str) -> str:
 def _pad_table(pads: list[dict[str, Any]]) -> str:
     lines = ["| Pad | Category | Filename | Path | Flags |", "|-----|----------|----------|------|-------|"]
     for p in pads:
-        flags = ", ".join(p["format_flags"]) if p["format_flags"] else ""
+        notes = []
+        if p["format_flags"]:
+            notes.append("⚠ " + ", ".join(p["format_flags"]))
+        if p["filler"]:
+            notes.append("🎲 auto-filled from library")
         lines.append(
             f"| {p['pad']} | {_escape_cell(p['display_name'])} | {_escape_cell(p['filename'])} "
-            f"| `{_escape_cell(p['path'])}` | {'⚠ ' + flags if flags else ''} |"
+            f"| `{_escape_cell(p['path'])}` | {'; '.join(notes)} |"
         )
     return "\n".join(lines)
 
@@ -76,7 +80,15 @@ def _render_kit(kit_dict: dict[str, Any], checked: bool) -> str:
         parts.append(_pad_table(bank))
         parts.append("")
 
+    filler_count = sum(1 for bank in kit_dict["banks"] for pad in bank if pad["filler"])
     free_melodic = kit_dict["melodic_pads_reserved"] - kit_dict["melodic_pads_used"]
+    if filler_count > 0:
+        parts.append(
+            f"_{filler_count} melodic pad(s) auto-filled with random samples from elsewhere in your "
+            "library (🎲 above) — swap out any you don't want, or set "
+            "`auto_fill_melodic_from_library: false` to disable this._"
+        )
+        parts.append("")
     if free_melodic > 0:
         parts.append(
             f"_{free_melodic} pad(s) left free for your own melodic samples "
@@ -109,6 +121,7 @@ def _summary(
     unclassified_total = sum(len(k["unclassified"]) for k in complete)
     needs_conversion_total = sum(1 for r in scan_index["files"] if r["needs_conversion"])
     ambiguous_total = sum(1 for r in scan_index["files"] if r["ambiguous_categories"])
+    filler_total = sum(1 for k in complete for bank in k["banks"] for pad in bank if pad["filler"])
 
     lines = [
         "# SP-404 Kit Builder Report",
@@ -129,6 +142,7 @@ def _summary(
         f"| Kits proposed | {len(complete)} |",
         f"| Auto-approved (best {auto_approved_count}) | {auto_approved_count} |",
         f"| Kits skipped (missing Kick/Snare/Hat) | {len(skipped)} |",
+        f"| Melodic pads auto-filled from library | {filler_total} |",
         f"| Unclassified files (total) | {unclassified_total} |",
         f"| Files needing format conversion | {needs_conversion_total} |",
         f"| Ambiguous classifications (see scan_index.json) | {ambiguous_total} |",
