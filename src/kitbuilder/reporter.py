@@ -1,0 +1,163 @@
+"""Phase 3 — render kits.md (source of truth) and kits.html (same content).
+
+Both are generated from the same in-memory markdown build so they can't
+drift: kits.html is produced by running kits.md through `markdown`.
+"""
+
+from __future__ import annotations
+
+import re
+from pathlib import Path
+from typing import Any
+
+import markdown as md
+
+from kitbuilder.assembler import Kit
+
+KITS_MD_FILENAME = "kits.md"
+KITS_HTML_FILENAME = "kits.html"
+
+_BANK_LETTERS = "ABCDEFGHIJ"
+_CHECKBOX_RE = re.compile(r"^##\s*\[([ xX])\]\s*(.+?)\s{2,}\(", re.MULTILINE)
+
+
+def _escape_cell(text: str) -> str:
+    return text.replace("|", r"\|")
+
+
+def _bank_label(bank_count: int) -> str:
+    if bank_count <= 1:
+        return "Bank A"
+    return f"Banks A-{_BANK_LETTERS[bank_count - 1]}"
+
+
+def _pad_table(pads: list[dict[str, Any]]) -> str:
+    lines = ["| Pad | Category | Filename | Path | Flags |", "|-----|----------|----------|------|-------|"]
+    for p in pads:
+        flags = ", ".join(p["format_flags"]) if p["format_flags"] else ""
+        lines.append(
+            f"| {p['pad']} | {_escape_cell(p['display_name'])} | {_escape_cell(p['filename'])} "
+            f"| `{_escape_cell(p['path'])}` | {'⚠ ' + flags if flags else ''} |"
+        )
+    return "\n".join(lines)
+
+
+def _alternates_table(alternates: dict[str, list[dict[str, Any]]]) -> str:
+    lines = ["| Category | Filename | Path |", "|----------|----------|------|"]
+    for category in alternates:
+        for f in alternates[category]:
+            lines.append(
+                f"| {_escape_cell(f['display_name'])} | {_escape_cell(f['filename'])} "
+                f"| `{_escape_cell(f['path'])}` |"
+            )
+    return "\n".join(lines)
+
+
+def _render_kit(kit_dict: dict[str, Any]) -> str:
+    parts = [
+        f"## [ ] {kit_dict['name']}  ({kit_dict['total_pads_used']} pads, "
+        f"{_bank_label(len(kit_dict['banks']))})",
+        "",
+    ]
+    if kit_dict["weak"]:
+        parts += [
+            f"⚠ **weak kit — review manually** "
+            f"(only {kit_dict['distinct_category_count']} categories matched)",
+            "",
+        ]
+
+    for i, bank in enumerate(kit_dict["banks"]):
+        if len(kit_dict["banks"]) > 1:
+            parts.append(f"### Bank {_BANK_LETTERS[i]}")
+            parts.append("")
+        parts.append(_pad_table(bank))
+        parts.append("")
+
+    if kit_dict["alternates"]:
+        parts += ["### Alternates", "", _alternates_table(kit_dict["alternates"]), ""]
+
+    if kit_dict["unclassified"]:
+        parts.append("### Unclassified (not assigned a pad)")
+        parts.append("")
+        for f in kit_dict["unclassified"]:
+            parts.append(f"- {f['filename']} — `{f['path']}`")
+        parts.append("")
+
+    parts.append("---")
+    parts.append("")
+    return "\n".join(parts)
+
+
+def _summary(kits: list[dict[str, Any]], scan_index: dict[str, Any]) -> str:
+    packs_scanned = len({r["pack"] for r in scan_index["files"]})
+    weak_kits = sum(1 for k in kits if k["weak"])
+    unclassified_total = sum(len(k["unclassified"]) for k in kits)
+    needs_conversion_total = sum(1 for r in scan_index["files"] if r["needs_conversion"])
+    ambiguous_total = sum(1 for r in scan_index["files"] if r["ambiguous_categories"])
+
+    lines = [
+        "# SP-404 Kit Builder Report",
+        "",
+        f"_Source: `{scan_index['source']}`_",
+        "",
+        "## Summary",
+        "",
+        "| | |",
+        "|---|---|",
+        f"| Packs scanned | {packs_scanned} |",
+        f"| Kits proposed | {len(kits)} |",
+        f"| Weak kits (review manually) | {weak_kits} |",
+        f"| Unclassified files (total) | {unclassified_total} |",
+        f"| Files needing format conversion | {needs_conversion_total} |",
+        f"| Ambiguous classifications (see scan_index.json) | {ambiguous_total} |",
+        "",
+        "Tick `[ ]` to `[x]` on the kits you want exported, save this file, "
+        "then run `kitbuilder export`.",
+        "",
+        "---",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def build_markdown(kits: list[Kit], scan_index: dict[str, Any]) -> str:
+    kit_dicts = [k.to_dict() for k in kits]
+    sections = [_summary(kit_dicts, scan_index)]
+    sections += [_render_kit(k) for k in kit_dicts]
+    return "\n".join(sections)
+
+
+def build_html(markdown_text: str) -> str:
+    body = md.markdown(markdown_text, extensions=["tables"])
+    return (
+        "<!DOCTYPE html>\n<html><head><meta charset=\"utf-8\">"
+        "<title>SP-404 Kit Builder Report</title>\n"
+        "<style>body{font-family:sans-serif;max-width:960px;margin:2rem auto;padding:0 1rem}"
+        "table{border-collapse:collapse;width:100%}td,th{border:1px solid #ccc;padding:4px 8px;"
+        "text-align:left}code{background:#f4f4f4;padding:1px 4px}</style>\n"
+        f"</head><body>\n{body}\n</body></html>\n"
+    )
+
+
+def write_report(kits: list[Kit], scan_index: dict[str, Any], out_dir: str | Path) -> tuple[Path, Path]:
+    out_path = Path(out_dir)
+    out_path.mkdir(parents=True, exist_ok=True)
+    markdown_text = build_markdown(kits, scan_index)
+    html_text = build_html(markdown_text)
+
+    md_path = out_path / KITS_MD_FILENAME
+    html_path = out_path / KITS_HTML_FILENAME
+    md_path.write_text(markdown_text, encoding="utf-8")
+    html_path.write_text(html_text, encoding="utf-8")
+    return md_path, html_path
+
+
+def parse_approved_kits(kits_md_path: str | Path) -> dict[str, bool]:
+    """Read kits.md and return {kit_name: approved} from the `## [ ]`/`## [x]` headings."""
+    text = Path(kits_md_path).read_text(encoding="utf-8")
+    approved: dict[str, bool] = {}
+    for match in _CHECKBOX_RE.finditer(text):
+        checked = match.group(1).strip().lower() == "x"
+        name = match.group(2).strip()
+        approved[name] = checked
+    return approved

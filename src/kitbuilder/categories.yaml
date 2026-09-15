@@ -1,0 +1,32 @@
+# Default classification config for kitbuilder.
+# Copy this file, edit it, and pass --config /path/to/your.yaml to
+# `kitbuilder scan` or `kitbuilder report` to override without touching code.
+
+pads_per_bank: 16
+banks_per_kit_max: 2
+
+# Minimum number of distinct categories a pack must match before it's
+# treated as a full kit rather than flagged "weak kit — review manually".
+weak_kit_category_threshold: 3
+
+# Ordered category -> keyword list. Order matters twice over:
+# - it's the priority order used to break "matches >1 category" ties
+# - it's the pad-fill order within an assembled kit
+# Keyword matching is case-insensitive and matches anywhere in the filename.
+categories:
+  Kick: [kick, kck, bd, bassdrum]
+  Snare: [snare, snr, sd]
+  Clap: [clap, clp]
+  Hat Closed: [hat, hh, chh, closedhat]
+  Hat Open: [openhat, ohh]
+  Rim/Stick: [rim, stick, clave]
+  Tom: [tom]
+  Cymbal: [cymbal, crash, ride]
+  Perc: [perc, shaker, tamb, conga, bongo]
+  Bass: [bass, sub]
+  FX: [fx, riser, impact, sweep, noise]
+  Vocal: [vox, vocal, chant]
+  Loop: [loop, break]
+
+exclude_folders: [midi, "project files", documentation]
+extensions: [.wav, .aiff, .aif]
