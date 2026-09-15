@@ -3,8 +3,12 @@ name: Build standalone Windows exe
 on:
   workflow_dispatch: {}
   push:
-    branches: [claude/funny-darwin-u40b22]
-    paths: [".github/workflows/build-exe.yml"]
+    branches: [main]
+    paths:
+      - ".github/workflows/build-exe.yml"
+      - "src/**"
+      - "scripts/**"
+      - "pyproject.toml"
 
 permissions:
   contents: write
