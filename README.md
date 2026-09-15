@@ -57,23 +57,41 @@ the ordered keyword map in `categories.yaml`, and flags anything that isn't
 
 ### `report --in <folder> [--config categories.yaml] [--dry-run]`
 
-Groups scanned files into one candidate kit per pack folder, fills pads in
-priority order (Kick, Snare, Clap, Hat Closed, Hat Open, Rim/Stick, Tom,
-Cymbal, Perc, Bass, FX, Vocal, Loop — configurable), and writes:
+Groups scanned files into candidate kits — normally one per pack folder,
+but see "Kit naming" below — and fills every kit onto exactly **one** 16-pad
+bank:
+
+1. **Basics first**: one Kick, one Snare, one Hat (closed or open, whichever
+   the pack has). A kit missing any of these three is flagged **incomplete**
+   but still proposed.
+2. **Then everything else**, in `core_categories` priority order (Kick,
+   Snare, Hat Closed, Hat Open, Clap, Rim/Stick, Tom, Cymbal, Perc), each
+   capped at `max_variations_per_category` (default 2 — e.g. `Kick`,
+   `Kick 2`, never `Kick 3`), up to a ceiling of `pads_per_bank -
+   reserved_melodic_pads` (12 by default).
+3. **The last `reserved_melodic_pads` pads** (4 by default) are set aside
+   for `melodic_categories` content (Bass, FX, Vocal, Loop) if the pack has
+   any — otherwise they're left free on purpose, ready for you to drop in
+   your own melodic one-shots later. They're never backfilled with extra
+   drum/perc variations.
+
+Anything that doesn't fit (per-category cap, or the two ceilings above) is
+listed under "Alternates" instead of being dropped. Unclassified ("Other")
+files are listed per kit but never assigned a pad. Writes:
 
 - `<out>/kits.md` — the source of truth. Each kit has a `## [ ] Kit Name`
   heading; tick it to `[x]` to approve that kit for export.
 - `<out>/kits.html` — the same report, rendered from the same markdown, for
   easier skimming in a browser.
 
-Packs matching fewer than `weak_kit_category_threshold` categories (default
-3) are flagged "weak kit — review manually" but still get a full kit
-proposal. Multiple files in the same category are never collapsed — e.g.
-three kicks become `Kick`, `Kick 2`, `Kick 3`, filled back-to-back. A pack
-with more classified files than fit in one 16-pad bank overflows into a
-second bank (up to `banks_per_kit_max`); anything beyond that is listed
-under "Alternates" per category instead of being dropped. Unclassified
-("Other") files are listed per kit but never assigned a pad.
+**Kit naming.** If a pack's filenames share a consistent, non-generic token
+(e.g. `BB3_hat_closed_sugar.wav`, `BB3_kick_sugar.wav`, ...), that token is
+used as the kit's real name instead of the folder name. A pack that bundles
+multiple such kits (say "Sugar" and "Spice" one-shots dumped in one Splice
+folder) gets split into separate kits — `<Pack> — Sugar`, `<Pack> — Spice`
+— with anything left unlabeled staying in a `<Pack>` kit of its own. Set
+`infer_kit_name_from_filename: false` in `categories.yaml` to always use the
+plain folder name instead.
 
 ### `export --in <folder> --out <folder> [--config categories.yaml] [--dry-run]`
 
@@ -82,10 +100,9 @@ copies (never moves) each approved kit's assigned files into:
 
 ```
 <out>/<Kit Name>/Bank_A/01_Kick.wav
-<out>/<Kit Name>/Bank_A/02_Kick_2.wav
-<out>/<Kit Name>/Bank_A/03_Snare.wav
+<out>/<Kit Name>/Bank_A/02_Snare.wav
+<out>/<Kit Name>/Bank_A/03_Hat_Closed.wav
 ...
-<out>/<Kit Name>/Bank_B/...   (only if the kit overflowed into a 2nd bank)
 ```
 
 Sequential numbering matches pad order, so you can select-all-in-order and
@@ -98,13 +115,14 @@ exported path, converted) for your own records.
 
 ## Config (`categories.yaml`)
 
-The classification keyword map, pad/bank layout, weak-kit threshold,
-excluded subfolders, and accepted extensions all live in `categories.yaml`.
-`scan` copies its resolved config into `<out>/categories.yaml`; edit that
-copy and re-run `report` (no `--config` flag needed — it's picked up
-automatically) to retune classification without rescanning. Pass an
-explicit `--config /path/to/file.yaml` to any subcommand to override that
-lookup.
+The classification keyword map, required-basics list, core/melodic category
+groupings, per-category variation cap, reserved melodic-pad count, kit-name
+inference toggle, excluded subfolders, and accepted extensions all live in
+`categories.yaml`. `scan` copies its resolved config into
+`<out>/categories.yaml`; edit that copy and re-run `report` (no `--config`
+flag needed — it's picked up automatically) to retune classification without
+rescanning. Pass an explicit `--config /path/to/file.yaml` to any subcommand
+to override that lookup.
 
 ## Importing into the SP-404 MKII (manual, by design)
 
@@ -124,8 +142,8 @@ assignment directly:
   Resumable: re-run `report` after hand-editing `categories.yaml` without
   rescanning.
 - The export destination (e.g. `SP404_Export/`): one folder per approved
-  kit, `Bank_A`/`Bank_B` subfolders, sequentially numbered files, plus
-  `export_manifest.csv`.
+  kit, a `Bank_A` subfolder (kits never span more than one bank), sequentially
+  numbered files, plus `export_manifest.csv`.
 
 ## Development / testing
 
@@ -145,9 +163,10 @@ this repo (or `pip install`) there and run `kitbuilder scan --source
 
 ## Assumptions made during the build
 
-- One kit per top-level pack folder — subfolders inside a pack (e.g.
-  `Kicks/`, `Claps/`) merge into that same kit rather than becoming their
-  own mini-kits.
+- One kit per top-level pack folder by default — subfolders inside a pack
+  (e.g. `Kicks/`, `Claps/`) merge into that same kit rather than becoming
+  their own mini-kits — unless filenames suggest otherwise (see "Kit
+  naming" above).
 - No packs are excluded by default beyond `exclude_folders` in
   `categories.yaml` (`midi`, `project files`, `documentation`).
 - Export always copies, never symlinks.
@@ -155,3 +174,15 @@ this repo (or `pip install`) there and run `kitbuilder scan --source
 - "Supported sample rate" (i.e. not flagged for conversion) is taken to mean
   44.1kHz or 48kHz PCM at 16 or 24 bits; anything else (including 32-bit
   float) is flagged `needs conversion` and fixed up at export time.
+- Loop and Bass/FX/Vocal one-shots are treated as "melodic" content (they
+  fill the reserved pads, not the core 12) rather than as part of the core
+  drum/perc set — a judgment call, easy to change via `core_categories` /
+  `melodic_categories` in `categories.yaml`.
+- Kit-name inference from filenames is a best-effort heuristic (last
+  non-generic, non-keyword token; a token shared by literally every file in
+  a pack is treated as that pack's real name, anything shared by most-but-
+  not-all files is treated as a boilerplate prefix like `BB3` and ignored).
+  It only splits a pack into multiple named kits when at least two distinct
+  labels each independently satisfy the Kick/Snare/Hat basics — otherwise it
+  falls back to the plain folder name. Turn it off with
+  `infer_kit_name_from_filename: false` if it ever mis-groups your files.

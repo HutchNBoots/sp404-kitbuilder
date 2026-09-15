@@ -19,7 +19,14 @@ def test_subfolder_file_belongs_to_top_level_pack(source_dir, config):
 def test_pack_grouping(source_dir, config):
     records = scan_source(source_dir, config)
     packs = {r.pack for r in records}
-    assert packs == {"Zander Lowfi Drums", "Tiny Pack", "Big Pack", "Format Test Pack"}
+    assert packs == {
+        "Zander Lowfi Drums",
+        "Tiny Pack",
+        "Big Pack",
+        "Format Test Pack",
+        "Drum Bundle",
+        "Random Folder Name",
+    }
 
 
 def test_classification_assigned_per_file(source_dir, config):
@@ -44,8 +51,8 @@ def test_format_flags(source_dir, config):
     assert by_name["kick_float32.wav"].needs_conversion is True
     assert by_name["kick_float32.wav"].subtype == "FLOAT"
 
-    assert by_name["kick_oddrate.wav"].needs_conversion is True
-    assert by_name["kick_oddrate.wav"].sample_rate == 22050
+    assert by_name["snare_oddrate.wav"].needs_conversion is True
+    assert by_name["snare_oddrate.wav"].sample_rate == 22050
 
     assert by_name["kick_ok24.wav"].needs_conversion is False
     assert by_name["kick_ok24.wav"].bit_depth == 24

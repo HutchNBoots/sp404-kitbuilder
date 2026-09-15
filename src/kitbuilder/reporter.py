@@ -17,18 +17,11 @@ from kitbuilder.assembler import Kit
 KITS_MD_FILENAME = "kits.md"
 KITS_HTML_FILENAME = "kits.html"
 
-_BANK_LETTERS = "ABCDEFGHIJ"
 _CHECKBOX_RE = re.compile(r"^##\s*\[([ xX])\]\s*(.+?)\s{2,}\(", re.MULTILINE)
 
 
 def _escape_cell(text: str) -> str:
     return text.replace("|", r"\|")
-
-
-def _bank_label(bank_count: int) -> str:
-    if bank_count <= 1:
-        return "Bank A"
-    return f"Banks A-{_BANK_LETTERS[bank_count - 1]}"
 
 
 def _pad_table(pads: list[dict[str, Any]]) -> str:
@@ -55,22 +48,23 @@ def _alternates_table(alternates: dict[str, list[dict[str, Any]]]) -> str:
 
 def _render_kit(kit_dict: dict[str, Any]) -> str:
     parts = [
-        f"## [ ] {kit_dict['name']}  ({kit_dict['total_pads_used']} pads, "
-        f"{_bank_label(len(kit_dict['banks']))})",
+        f"## [ ] {kit_dict['name']}  ({kit_dict['total_pads_used']} pads, Bank A)",
         "",
     ]
     if kit_dict["weak"]:
-        parts += [
-            f"⚠ **weak kit — review manually** "
-            f"(only {kit_dict['distinct_category_count']} categories matched)",
-            "",
-        ]
+        missing = ", ".join(kit_dict["missing_basics"])
+        parts += [f"⚠ **incomplete kit — missing {missing}** (review manually)", ""]
 
-    for i, bank in enumerate(kit_dict["banks"]):
-        if len(kit_dict["banks"]) > 1:
-            parts.append(f"### Bank {_BANK_LETTERS[i]}")
-            parts.append("")
+    for bank in kit_dict["banks"]:
         parts.append(_pad_table(bank))
+        parts.append("")
+
+    free_melodic = kit_dict["melodic_pads_reserved"] - kit_dict["melodic_pads_used"]
+    if free_melodic > 0:
+        parts.append(
+            f"_{free_melodic} pad(s) left free for your own melodic samples "
+            f"({kit_dict['melodic_pads_used']}/{kit_dict['melodic_pads_reserved']} reserved slots used)._"
+        )
         parts.append("")
 
     if kit_dict["alternates"]:
@@ -106,7 +100,7 @@ def _summary(kits: list[dict[str, Any]], scan_index: dict[str, Any]) -> str:
         "|---|---|",
         f"| Packs scanned | {packs_scanned} |",
         f"| Kits proposed | {len(kits)} |",
-        f"| Weak kits (review manually) | {weak_kits} |",
+        f"| Incomplete kits (missing Kick/Snare/Hat) | {weak_kits} |",
         f"| Unclassified files (total) | {unclassified_total} |",
         f"| Files needing format conversion | {needs_conversion_total} |",
         f"| Ambiguous classifications (see scan_index.json) | {ambiguous_total} |",

@@ -68,11 +68,30 @@ def main() -> None:
     for i in range(1, 6):
         write_wav(f"Big Pack/clap_{i:02d}.wav")
 
-    # --- Format Test Pack: format-flagging / conversion cases. ---
+    # --- Format Test Pack: format-flagging / conversion cases. Exactly 2
+    # kicks so both survive the max_variations_per_category=2 cap. ---
     write_wav("Format Test Pack/kick_float32.wav", subtype="FLOAT")  # 32-bit float -> needs conversion
-    write_wav("Format Test Pack/kick_oddrate.wav", samplerate=22050)  # unsupported rate -> needs conversion
     write_wav("Format Test Pack/kick_ok24.wav", samplerate=48000, subtype="PCM_24")  # fine, no flag
-    write_wav("Format Test Pack/snare_01.wav")
+    write_wav("Format Test Pack/snare_oddrate.wav", samplerate=22050)  # unsupported rate -> needs conversion
+    write_wav("Format Test Pack/hat_closed.wav")
+
+    # --- Drum Bundle: one Splice-style folder holding two distinct kits,
+    # distinguished only by a shared filename suffix ("sugar" / "spice"),
+    # plus one leftover file with no confident label. Tests kit-name
+    # inference from filenames (e.g. BB3_hat_closed_sugar.wav -> "Sugar"). ---
+    for label in ("sugar", "spice"):
+        write_wav(f"Drum Bundle/BB3_kick_{label}.wav")
+        write_wav(f"Drum Bundle/BB3_snare_{label}.wav")
+        write_wav(f"Drum Bundle/BB3_hat_closed_{label}.wav")
+    write_wav("Drum Bundle/BB3_clap_sugar.wav")
+    write_wav("Drum Bundle/BB3_perc_spice.wav")
+    write_wav("Drum Bundle/random_fx_noise.wav")  # no shared label -> leftover pool
+
+    # --- Random Folder Name: every file shares one label ("glimmer") that
+    # isn't the folder name -> single kit gets renamed, not split. ---
+    write_wav("Random Folder Name/kick_glimmer.wav")
+    write_wav("Random Folder Name/snare_glimmer.wav")
+    write_wav("Random Folder Name/hat_closed_glimmer.wav")
 
     print(f"Fixtures written under {FIXTURES_ROOT}")
 

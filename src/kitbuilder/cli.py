@@ -58,12 +58,12 @@ def cmd_report(args: argparse.Namespace) -> int:
     config = _resolve_config(args.config, args.in_dir)
     kits = assemble_kits(scan_index, config)
 
-    weak = sum(1 for k in kits if k.weak)
+    incomplete = sum(1 for k in kits if k.weak)
     print(f"Assembled {len(kits)} candidate kit(s) from {scan_index['file_count']} scanned files.")
-    print(f"  Weak kits (review manually): {weak}")
+    print(f"  Incomplete kits (missing Kick/Snare/Hat): {incomplete}")
     for k in kits:
-        flag = " [weak]" if k.weak else ""
-        print(f"  - {k.name}: {k.total_pads_used} pads across {len(k.banks)} bank(s){flag}")
+        flag = f" [incomplete: missing {', '.join(k.missing_basics)}]" if k.weak else ""
+        print(f"  - {k.name}: {k.total_pads_used} pads{flag}")
 
     if args.dry_run:
         print("[dry-run] kits.md / kits.html not written.")

@@ -14,7 +14,16 @@ def test_markdown_has_checkbox_heading_per_kit(source_dir, config):
     markdown_text = build_markdown(kits, scan_index)
     assert "## [ ] Zander Lowfi Drums" in markdown_text
     assert "## [ ] Tiny Pack" in markdown_text
-    assert "weak kit" in markdown_text.lower()
+    assert "## [ ] Drum Bundle — Sugar" in markdown_text
+    assert "incomplete kit" in markdown_text.lower()
+    assert "missing Hat Closed or Hat Open" in markdown_text
+
+
+def test_markdown_notes_free_melodic_pads(source_dir, config):
+    scan_index = _scan_index(source_dir, config)
+    kits = assemble_kits(scan_index, config)
+    markdown_text = build_markdown(kits, scan_index)
+    assert "left free for your own melodic samples" in markdown_text
 
 
 def test_html_is_derived_from_markdown_and_has_tables(source_dir, config):
@@ -33,7 +42,8 @@ def test_write_report_and_parse_checkboxes_roundtrip(source_dir, config, tmp_pat
     assert md_path.exists() and html_path.exists()
 
     approved = parse_approved_kits(md_path)
-    assert set(approved.keys()) == {"Zander Lowfi Drums", "Tiny Pack", "Big Pack", "Format Test Pack"}
+    assert "Tiny Pack" in approved
+    assert "Drum Bundle — Sugar" in approved
     assert all(v is False for v in approved.values())  # nothing ticked yet
 
     # simulate the user ticking one kit

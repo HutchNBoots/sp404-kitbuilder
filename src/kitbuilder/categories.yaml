@@ -1,17 +1,58 @@
-# Default classification config for kitbuilder.
+# Default classification/assembly config for kitbuilder.
 # Copy this file, edit it, and pass --config /path/to/your.yaml to
 # `kitbuilder scan` or `kitbuilder report` to override without touching code.
 
 pads_per_bank: 16
-banks_per_kit_max: 2
 
-# Minimum number of distinct categories a pack must match before it's
-# treated as a full kit rather than flagged "weak kit — review manually".
-weak_kit_category_threshold: 3
+# Every kit lives on exactly one bank. Pads beyond pads_per_bank never
+# spill into a second bank — extras are listed as "Alternates" instead.
+
+# Cap on how many files of the same category get a pad (e.g. Kick, Kick 2
+# — never Kick 3). Anything beyond this per category goes to Alternates.
+max_variations_per_category: 2
+
+# The last N pads of the bank are set aside for the user's own melodic
+# samples. Only categories in melodic_categories are allowed to fill them
+# (and only if the pack actually has files in those categories) — they are
+# never backfilled with extra drum/perc variations, so they stay free.
+reserved_melodic_pads: 4
+
+# A kit must have at least one file in every one of these groups to be
+# considered complete; each inner list is an "at least one of" — e.g. the
+# Hat group is satisfied by either a closed or an open hat. Kits missing
+# any group are flagged "incomplete" in the report but still proposed.
+required_basics:
+  - [Kick]
+  - [Snare]
+  - [Hat Closed, Hat Open]
+
+# Fill order for the main 12 (pads_per_bank - reserved_melodic_pads) pads.
+# Kick/Snare/(one Hat) go first as the guaranteed basics, then everything
+# else — including a 2nd Kick/Snare/Hat — fills in this same priority
+# order up to max_variations_per_category each.
+core_categories:
+  - Kick
+  - Snare
+  - Hat Closed
+  - Hat Open
+  - Clap
+  - Rim/Stick
+  - Tom
+  - Cymbal
+  - Perc
+
+# Only these categories are eligible to fill the reserved melodic pads.
+melodic_categories: [Bass, FX, Vocal, Loop]
+
+# Try to infer a kit's real name from a shared, non-generic filename token
+# (e.g. "BB3_hat_closed_sugar.wav" -> kit name "Sugar"). Falls back to the
+# pack folder name whenever no confident label is found. Set to false to
+# always use the pack folder name.
+infer_kit_name_from_filename: true
 
 # Ordered category -> keyword list. Order matters twice over:
 # - it's the priority order used to break "matches >1 category" ties
-# - it's the pad-fill order within an assembled kit
+# - it's the pad-fill priority within core_categories/melodic_categories
 # Keyword matching is case-insensitive and matches anywhere in the filename.
 categories:
   Kick: [kick, kck, bd, bassdrum]

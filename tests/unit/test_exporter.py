@@ -15,7 +15,7 @@ def _scan_index(source_dir, config):
 def test_export_copies_only_approved_kits(source_dir, config, tmp_path):
     scan_index = _scan_index(source_dir, config)
     kits = assemble_kits(scan_index, config)
-    approved = {"Tiny Pack": True, "Zander Lowfi Drums": False, "Big Pack": False, "Format Test Pack": False}
+    approved = {k.name: (k.name == "Tiny Pack") for k in kits}
 
     export_root = tmp_path / "export"
     rows, warnings = export_kits(kits, approved, export_root, dry_run=False)
@@ -26,16 +26,46 @@ def test_export_copies_only_approved_kits(source_dir, config, tmp_path):
     assert not (export_root / "Zander Lowfi Drums").exists()
 
 
-def test_export_sequential_naming_matches_pad_order(source_dir, config, tmp_path):
+def test_export_never_spans_more_than_bank_a(source_dir, config, tmp_path):
     scan_index = _scan_index(source_dir, config)
     kits = assemble_kits(scan_index, config)
     approved = {k.name: (k.name == "Zander Lowfi Drums") for k in kits}
 
     export_root = tmp_path / "export"
-    rows, _ = export_kits(kits, approved, export_root, dry_run=False)
+    export_kits(kits, approved, export_root, dry_run=False)
 
-    kick_files = sorted(p.name for p in (export_root / "Zander Lowfi Drums" / "Bank_A").glob("*Kick*"))
-    assert kick_files == ["01_Kick.wav", "02_Kick_2.wav", "03_Kick_3.wav"]
+    assert (export_root / "Zander Lowfi Drums" / "Bank_A").is_dir()
+    assert not (export_root / "Zander Lowfi Drums" / "Bank_B").exists()
+
+
+def test_export_sequential_naming_matches_pad_order(source_dir, config, tmp_path):
+    scan_index = _scan_index(source_dir, config)
+    kits = assemble_kits(scan_index, config)
+    zander = next(k for k in kits if k.name == "Zander Lowfi Drums")
+    expected = [
+        f"{p.pad:02d}_{p.display_name.replace(' ', '_').replace('/', '_')}{p.path[p.path.rindex('.'):].lower()}"
+        for p in zander.banks[0]
+    ]
+
+    approved = {k.name: (k.name == "Zander Lowfi Drums") for k in kits}
+    export_root = tmp_path / "export"
+    export_kits(kits, approved, export_root, dry_run=False)
+
+    exported = sorted(p.name for p in (export_root / "Zander Lowfi Drums" / "Bank_A").glob("*"))
+    assert exported == sorted(expected)
+
+
+def test_multi_kit_pack_exports_each_labeled_kit_separately(source_dir, config, tmp_path):
+    scan_index = _scan_index(source_dir, config)
+    kits = assemble_kits(scan_index, config)
+    approved = {k.name: k.name.startswith("Drum Bundle") for k in kits}
+
+    export_root = tmp_path / "export"
+    export_kits(kits, approved, export_root, dry_run=False)
+
+    assert (export_root / "Drum Bundle — Sugar" / "Bank_A").is_dir()
+    assert (export_root / "Drum Bundle — Spice" / "Bank_A").is_dir()
+    assert (export_root / "Drum Bundle" / "Bank_A").is_dir()  # leftover pool
 
 
 def test_export_converts_flagged_files(source_dir, config, tmp_path):
