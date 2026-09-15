@@ -6,6 +6,9 @@ on:
     branches: [claude/funny-darwin-u40b22]
     paths: [".github/workflows/build-exe.yml"]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
@@ -35,3 +38,18 @@ jobs:
           name: kitbuilder-windows-exe
           path: dist/kitbuilder.exe
           retention-days: 14
+
+      # Publishes to a GitHub Release so the exe is a plain browser download —
+      # this step runs entirely on GitHub's infrastructure using the
+      # workflow's own token, no separate upload step needed.
+      - name: Publish to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: windows-exe
+          name: kitbuilder.exe (Windows, standalone)
+          body: >
+            Auto-built by .github/workflows/build-exe.yml from commit
+            ${{ github.sha }}. No install needed — download kitbuilder.exe
+            and run it directly.
+          files: dist/kitbuilder.exe
+          prerelease: true
