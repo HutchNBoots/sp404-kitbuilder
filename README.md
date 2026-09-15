@@ -103,10 +103,11 @@ folder) gets split into separate kits — `<Pack> — Sugar`, `<Pack> — Spice`
 `infer_kit_name_from_filename: false` in `categories.yaml` to always use the
 plain folder name instead.
 
-### `export --in <folder> --out <folder> [--config categories.yaml] [--dry-run]`
+### `export --in <folder> --out <folder> [--config categories.yaml] [--dry-run] [--kits-per-project N]`
 
-Reads only `kits.md` (never the `.html`) for which kits are checked, then
-copies (never moves) each approved kit's assigned files into:
+Reads only `kits.md` (never the `.html`) for which kits are checked — in the
+same best-first order they're listed in — then copies (never moves) each
+approved kit's assigned files into:
 
 ```
 <out>/<Kit Name>/Bank_A/01_Kick.wav
@@ -121,7 +122,24 @@ file flagged `needs conversion` is converted to 16-bit/44.1kHz PCM on the
 way out (via `ffmpeg` if present on `PATH`, otherwise a built-in resampler)
 — your source library is never touched. Also writes
 `<out>/export_manifest.csv` (kit, bank, pad, category, source path,
-exported path, converted) for your own records.
+exported path, converted, project) for your own records.
+
+**`--kits-per-project N`.** The SP-404 MKII holds 10 banks per project (16
+pads each), so at most 10 kits are "loaded" at once. Pass `--kits-per-project
+10` (or any N) to bundle approved kits — best-first — into project-sized
+groups instead of one flat folder per kit:
+
+```
+<out>/Project_1/Bank_01_<Kit Name>/01_Kick.wav
+<out>/Project_1/Bank_02_<Kit Name 2>/01_Kick.wav
+...
+<out>/Project_2/Bank_01_<Kit Name 11>/01_Kick.wav
+```
+
+`Bank_01`..`Bank_10` map directly to the hardware bank each kit would occupy
+within that project — select-all-in-order within each `Project_N` folder and
+you're loading one project's worth of kits at a time. Omit the flag for the
+original flat `<Kit Name>/Bank_A/...` layout.
 
 ## Config (`categories.yaml`)
 

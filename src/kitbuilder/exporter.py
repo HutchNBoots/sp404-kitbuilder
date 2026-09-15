@@ -36,6 +36,7 @@ class ManifestRow:
     source_path: str
     exported_path: str
     converted: bool
+    project: str = ""
 
 
 def _sanitize(name: str) -> str:
@@ -84,8 +85,18 @@ def export_kits(
     approved: dict[str, bool],
     export_root: str | Path,
     dry_run: bool = False,
+    kits_per_project: int | None = None,
 ) -> tuple[list[ManifestRow], list[str]]:
     """Copy every approved kit's assigned pads into export_root.
+
+    Approved kits are exported in the order they appear in `approved`
+    (kits.md lists complete kits best-first, so that order is preserved).
+
+    When kits_per_project is set, kits are bundled into Project_N folders
+    of that many kits each — matching the SP-404 MKII's 10 banks/project —
+    with each kit's folder tagged Bank_XX for the hardware bank it would
+    occupy in that project. Without it, kits export flat as
+    <export_root>/<Kit Name>/Bank_A/... as before.
 
     Returns (manifest_rows, warnings). Nothing is written when dry_run.
     """
@@ -93,17 +104,25 @@ def export_kits(
     warnings: list[str] = []
     root = Path(export_root)
 
-    kit_names = {k.name for k in kits}
+    by_name = {k.name: k for k in kits}
     for name, checked in approved.items():
-        if checked and name not in kit_names:
+        if checked and name not in by_name:
             warnings.append(f"kits.md has '{name}' checked, but it's no longer among the scanned kits")
 
-    for kit in kits:
-        if not approved.get(kit.name, False):
-            continue
+    approved_kits = [by_name[name] for name, checked in approved.items() if checked and name in by_name]
+
+    for index, kit in enumerate(approved_kits):
+        if kits_per_project:
+            project_name = f"Project_{index // kits_per_project + 1}"
+            bank_slot = index % kits_per_project + 1
+            kit_root = root / project_name / f"Bank_{bank_slot:02d}_{kit.name}"
+        else:
+            project_name = ""
+            kit_root = root / kit.name
+
         for bank_index, bank in enumerate(kit.banks):
             bank_name = f"Bank_{_BANK_LETTERS[bank_index]}"
-            dest_dir = root / kit.name / bank_name
+            dest_dir = kit_root if kits_per_project else (kit_root / bank_name)
             if not dry_run:
                 dest_dir.mkdir(parents=True, exist_ok=True)
             for pad in bank:
@@ -123,6 +142,7 @@ def export_kits(
                         source_path=str(src),
                         exported_path=str(dest),
                         converted=pad.needs_conversion,
+                        project=project_name,
                     )
                 )
     return rows, warnings
@@ -134,10 +154,10 @@ def write_manifest(rows: list[ManifestRow], export_root: str | Path) -> Path:
     manifest_path = root / MANIFEST_FILENAME
     with open(manifest_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow(["kit", "bank", "pad", "category", "source_path", "exported_path", "converted"])
+        writer.writerow(["kit", "bank", "pad", "category", "source_path", "exported_path", "converted", "project"])
         for row in rows:
             writer.writerow(
-                [row.kit, row.bank, row.pad, row.category, row.source_path, row.exported_path, row.converted]
+                [row.kit, row.bank, row.pad, row.category, row.source_path, row.exported_path, row.converted, row.project]
             )
     return manifest_path
 

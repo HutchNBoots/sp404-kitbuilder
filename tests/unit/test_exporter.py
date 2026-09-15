@@ -68,6 +68,44 @@ def test_multi_kit_pack_exports_each_labeled_kit_separately(source_dir, config, 
     assert (export_root / "Drum Bundle" / "Bank_A").is_dir()  # leftover pool
 
 
+def test_kits_per_project_groups_in_approval_order(source_dir, config, tmp_path):
+    scan_index = _scan_index(source_dir, config)
+    kits = assemble_kits(scan_index, config)
+    complete_names = [k.name for k in kits if not k.weak]
+    assert len(complete_names) >= 5  # fixtures have 5 complete kits
+
+    # deliberate order, independent of assemble_kits' alphabetical return order
+    order = sorted(complete_names)  # any fixed, known order works for this test
+    approved = {name: True for name in order}
+
+    export_root = tmp_path / "export"
+    rows, warnings = export_kits(kits, approved, export_root, dry_run=False, kits_per_project=2)
+    assert warnings == []
+
+    # first 2 approved kits -> Project_1 (Bank_01, Bank_02), next 2 -> Project_2, ...
+    for index, name in enumerate(order):
+        project = f"Project_{index // 2 + 1}"
+        bank_slot = index % 2 + 1
+        assert (export_root / project / f"Bank_{bank_slot:02d}_{name}").is_dir()
+
+    assert all(r.project == f"Project_{order.index(r.kit) // 2 + 1}" for r in rows)
+    # no separate Bank_A subfolder when grouping into projects
+    assert not any((export_root / "Project_1").rglob("Bank_A"))
+
+
+def test_kits_per_project_manifest_records_project_column(source_dir, config, tmp_path):
+    scan_index = _scan_index(source_dir, config)
+    kits = assemble_kits(scan_index, config)
+    approved = {k.name: True for k in kits if not k.weak}
+
+    export_root = tmp_path / "export"
+    rows, _ = export_kits(kits, approved, export_root, dry_run=False, kits_per_project=10)
+    assert all(r.project == "Project_1" for r in rows)  # 5 complete kits fit in one project of 10
+
+    rows_flat, _ = export_kits(kits, approved, export_root, dry_run=True, kits_per_project=None)
+    assert all(r.project == "" for r in rows_flat)
+
+
 def test_export_converts_flagged_files(source_dir, config, tmp_path):
     scan_index = _scan_index(source_dir, config)
     kits = assemble_kits(scan_index, config)
@@ -125,4 +163,6 @@ def test_manifest_csv(source_dir, config, tmp_path):
     with open(manifest_path, newline="", encoding="utf-8") as f:
         csv_rows = list(csv.DictReader(f))
     assert len(csv_rows) == len(rows)
-    assert set(csv_rows[0].keys()) == {"kit", "bank", "pad", "category", "source_path", "exported_path", "converted"}
+    assert set(csv_rows[0].keys()) == {
+        "kit", "bank", "pad", "category", "source_path", "exported_path", "converted", "project",
+    }

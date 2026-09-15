@@ -92,6 +92,23 @@ def test_dry_run_flags_write_nothing(source_dir, tmp_path):
     assert not export_dir.exists()
 
 
+def test_kits_per_project_flag_groups_into_project_folders(source_dir, tmp_path):
+    out_dir = tmp_path / "kitbuilder_out"
+    export_dir = tmp_path / "SP404_Export"
+
+    run_cli("scan", "--source", str(source_dir), "--out", str(out_dir))
+    run_cli("report", "--in", str(out_dir))  # default auto-approve checks all 5 complete kits
+
+    export = run_cli("export", "--in", str(out_dir), "--out", str(export_dir), "--kits-per-project", "2")
+    assert export.returncode == 0, export.stderr
+    assert "Grouped into 3 project(s) of up to 2 kit(s) each" in export.stdout
+
+    assert (export_dir / "Project_1" / "Bank_01_Zander Lowfi Drums" / "01_Kick.wav").exists()
+    assert not (export_dir / "Project_1" / "Bank_01_Zander Lowfi Drums" / "Bank_A").exists()
+    assert (export_dir / "Project_3").is_dir()  # 5 kits / 2 per project -> 3 projects
+    assert not (export_dir / "Zander Lowfi Drums").exists()  # no flat layout when grouping
+
+
 def test_no_kits_checked_is_a_noop(source_dir, tmp_path):
     out_dir = tmp_path / "kitbuilder_out"
     export_dir = tmp_path / "SP404_Export"

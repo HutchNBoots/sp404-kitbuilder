@@ -94,12 +94,17 @@ def cmd_export(args: argparse.Namespace) -> int:
         print("No kits are checked in kits.md — nothing to export. Tick `[x]` on the kits you want first.")
         return 0
 
-    rows, warnings = export_kits(kits, approved, args.out, dry_run=args.dry_run)
+    rows, warnings = export_kits(
+        kits, approved, args.out, dry_run=args.dry_run, kits_per_project=args.kits_per_project
+    )
     for w in warnings:
         print(f"⚠ {w}", file=sys.stderr)
 
     verb = "Would export" if args.dry_run else "Exported"
     print(f"{verb} {len(rows)} file(s) across {len(approved_names)} approved kit(s) to {args.out}")
+    if args.kits_per_project:
+        project_count = -(-len(approved_names) // args.kits_per_project)  # ceil division
+        print(f"  Grouped into {project_count} project(s) of up to {args.kits_per_project} kit(s) each")
     if args.dry_run:
         for row in rows:
             print(f"  [dry-run] {row.source_path} -> {row.exported_path}"
@@ -137,6 +142,15 @@ def build_parser() -> argparse.ArgumentParser:
     export_p.add_argument("--out", required=True, help="Export destination root")
     export_p.add_argument("--config", help="Path to a categories.yaml override (defaults to <in>/categories.yaml)")
     export_p.add_argument("--dry-run", action="store_true", help="Print what would be copied; write nothing")
+    export_p.add_argument(
+        "--kits-per-project",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Group approved kits into Project_1, Project_2, ... folders of N kits each "
+        "(e.g. 10, matching the SP-404 MKII's 10 banks/project). Omit for the flat "
+        "<Kit Name>/Bank_A/... layout.",
+    )
     export_p.set_defaults(func=cmd_export)
 
     return parser
