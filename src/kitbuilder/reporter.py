@@ -51,9 +51,6 @@ def _render_kit(kit_dict: dict[str, Any]) -> str:
         f"## [ ] {kit_dict['name']}  ({kit_dict['total_pads_used']} pads, Bank A)",
         "",
     ]
-    if kit_dict["weak"]:
-        missing = ", ".join(kit_dict["missing_basics"])
-        parts += [f"⚠ **incomplete kit — missing {missing}** (review manually)", ""]
 
     for bank in kit_dict["banks"]:
         parts.append(_pad_table(bank))
@@ -82,10 +79,9 @@ def _render_kit(kit_dict: dict[str, Any]) -> str:
     return "\n".join(parts)
 
 
-def _summary(kits: list[dict[str, Any]], scan_index: dict[str, Any]) -> str:
+def _summary(complete: list[dict[str, Any]], skipped: list[dict[str, Any]], scan_index: dict[str, Any]) -> str:
     packs_scanned = len({r["pack"] for r in scan_index["files"]})
-    weak_kits = sum(1 for k in kits if k["weak"])
-    unclassified_total = sum(len(k["unclassified"]) for k in kits)
+    unclassified_total = sum(len(k["unclassified"]) for k in complete)
     needs_conversion_total = sum(1 for r in scan_index["files"] if r["needs_conversion"])
     ambiguous_total = sum(1 for r in scan_index["files"] if r["ambiguous_categories"])
 
@@ -94,13 +90,17 @@ def _summary(kits: list[dict[str, Any]], scan_index: dict[str, Any]) -> str:
         "",
         f"_Source: `{scan_index['source']}`_",
         "",
+        "Only complete kits (at least one Kick, one Snare, and one Hat) are "
+        "proposed below. Incomplete ones are skipped — see the list at the "
+        "bottom, or `scan_index.json`, to hand-assemble them yourself.",
+        "",
         "## Summary",
         "",
         "| | |",
         "|---|---|",
         f"| Packs scanned | {packs_scanned} |",
-        f"| Kits proposed | {len(kits)} |",
-        f"| Incomplete kits (missing Kick/Snare/Hat) | {weak_kits} |",
+        f"| Kits proposed | {len(complete)} |",
+        f"| Kits skipped (missing Kick/Snare/Hat) | {len(skipped)} |",
         f"| Unclassified files (total) | {unclassified_total} |",
         f"| Files needing format conversion | {needs_conversion_total} |",
         f"| Ambiguous classifications (see scan_index.json) | {ambiguous_total} |",
@@ -114,10 +114,26 @@ def _summary(kits: list[dict[str, Any]], scan_index: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _skipped_section(skipped: list[dict[str, Any]]) -> str:
+    if not skipped:
+        return ""
+    lines = ["## Skipped (incomplete — missing Kick/Snare/Hat)", ""]
+    for kit_dict in skipped:
+        missing = ", ".join(kit_dict["missing_basics"])
+        lines.append(f"- **{kit_dict['name']}** — missing {missing}")
+    lines.append("")
+    lines.append("---")
+    lines.append("")
+    return "\n".join(lines)
+
+
 def build_markdown(kits: list[Kit], scan_index: dict[str, Any]) -> str:
     kit_dicts = [k.to_dict() for k in kits]
-    sections = [_summary(kit_dicts, scan_index)]
-    sections += [_render_kit(k) for k in kit_dicts]
+    complete = [k for k in kit_dicts if not k["weak"]]
+    skipped = [k for k in kit_dicts if k["weak"]]
+    sections = [_summary(complete, skipped, scan_index)]
+    sections += [_render_kit(k) for k in complete]
+    sections.append(_skipped_section(skipped))
     return "\n".join(sections)
 
 

@@ -28,16 +28,17 @@ def test_full_pipeline_scan_report_export(source_dir, tmp_path):
     assert kits_md.exists()
     assert (out_dir / "kits.html").exists()
 
-    # approve exactly one kit
+    # approve exactly one (complete) kit — Tiny Pack is incomplete (no Hat)
+    # and so isn't even proposed in kits.md
     text = kits_md.read_text(encoding="utf-8")
-    text = text.replace("## [ ] Tiny Pack", "## [x] Tiny Pack")
+    text = text.replace("## [ ] Zander Lowfi Drums", "## [x] Zander Lowfi Drums")
     kits_md.write_text(text, encoding="utf-8")
 
     export = run_cli("export", "--in", str(out_dir), "--out", str(export_dir))
     assert export.returncode == 0, export.stderr
-    assert (export_dir / "Tiny Pack" / "Bank_A" / "01_Kick.wav").exists()
+    assert (export_dir / "Zander Lowfi Drums" / "Bank_A" / "01_Kick.wav").exists()
     assert (export_dir / "export_manifest.csv").exists()
-    assert not (export_dir / "Zander Lowfi Drums").exists()
+    assert not (export_dir / "Tiny Pack").exists()
 
 
 def test_dry_run_flags_write_nothing(source_dir, tmp_path):
@@ -55,7 +56,7 @@ def test_dry_run_flags_write_nothing(source_dir, tmp_path):
 
     run_cli("report", "--in", str(out_dir))
     text = (out_dir / KITS_MD_FILENAME).read_text(encoding="utf-8")
-    text = text.replace("## [ ] Tiny Pack", "## [x] Tiny Pack")
+    text = text.replace("## [ ] Zander Lowfi Drums", "## [x] Zander Lowfi Drums")
     (out_dir / KITS_MD_FILENAME).write_text(text, encoding="utf-8")
 
     export_dir = tmp_path / "SP404_Export"

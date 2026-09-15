@@ -60,9 +60,10 @@ def cmd_report(args: argparse.Namespace) -> int:
 
     incomplete = sum(1 for k in kits if k.weak)
     print(f"Assembled {len(kits)} candidate kit(s) from {scan_index['file_count']} scanned files.")
-    print(f"  Incomplete kits (missing Kick/Snare/Hat): {incomplete}")
+    print(f"  Proposed in kits.md: {len(kits) - incomplete}")
+    print(f"  Skipped — incomplete, missing Kick/Snare/Hat: {incomplete}")
     for k in kits:
-        flag = f" [incomplete: missing {', '.join(k.missing_basics)}]" if k.weak else ""
+        flag = f" [SKIPPED: missing {', '.join(k.missing_basics)}]" if k.weak else ""
         print(f"  - {k.name}: {k.total_pads_used} pads{flag}")
 
     if args.dry_run:

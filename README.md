@@ -62,8 +62,10 @@ but see "Kit naming" below — and fills every kit onto exactly **one** 16-pad
 bank:
 
 1. **Basics first**: one Kick, one Snare, one Hat (closed or open, whichever
-   the pack has). A kit missing any of these three is flagged **incomplete**
-   but still proposed.
+   the pack has). A kit missing any of these three is **not proposed** —
+   it's listed under "Skipped" at the bottom of the report instead (with
+   what's missing), so you can hand-assemble it from `scan_index.json` if
+   you want it anyway.
 2. **Then everything else**, in `core_categories` priority order (Kick,
    Snare, Hat Closed, Hat Open, Clap, Rim/Stick, Tom, Cymbal, Perc), each
    capped at `max_variations_per_category` (default 2 — e.g. `Kick`,
