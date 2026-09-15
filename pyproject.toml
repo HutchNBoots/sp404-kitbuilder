@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sp404-kitbuilder"
+version = "0.1.0"
+description = "Scan a Splice sample library, auto-group one-shots into SP-404 MKII kits, and export them ready for manual pad import."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "PyYAML>=6.0",
+    "soundfile>=0.12",
+    "markdown>=3.5",
+    "numpy>=1.24",
+]
+
+[project.optional-dependencies]
+convert = ["ffmpeg-python>=0.2"]
+dev = ["pytest>=7.4"]
+
+[project.scripts]
+kitbuilder = "kitbuilder.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+kitbuilder = ["categories.yaml", "templates/*.md.j2"]
