@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from importlib import resources
 from pathlib import Path
 from typing import Any
@@ -12,7 +13,14 @@ DEFAULT_CONFIG_FILENAME = "categories.yaml"
 
 
 def packaged_default_config_path() -> Path:
-    """Path to the config shipped inside the installed package."""
+    """Path to the config shipped inside the installed package.
+
+    Handles both a normal pip install and a PyInstaller-frozen executable
+    (where package data lives under sys._MEIPASS instead of a real
+    importlib-visible package directory).
+    """
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        return Path(sys._MEIPASS) / "kitbuilder" / DEFAULT_CONFIG_FILENAME
     return resources.files("kitbuilder") / DEFAULT_CONFIG_FILENAME
 
 

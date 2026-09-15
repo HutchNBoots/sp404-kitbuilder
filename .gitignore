@@ -7,3 +7,6 @@ dist/
 .pytest_cache/
 kitbuilder_out/
 SP404_Export/
+/build/
+/dist/
+*.spec

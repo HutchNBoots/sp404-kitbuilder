@@ -1,0 +1,34 @@
+name: Build standalone Windows exe
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install package + PyInstaller
+        run: |
+          pip install -e ".[build]"
+
+      - name: Build kitbuilder.exe
+        run: |
+          pyinstaller --onefile --name kitbuilder `
+            --add-data "src/kitbuilder/categories.yaml;kitbuilder" `
+            scripts/pyinstaller_entry.py
+
+      - name: Smoke test the exe
+        run: |
+          .\dist\kitbuilder.exe --help
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kitbuilder-windows-exe
+          path: dist/kitbuilder.exe
+          retention-days: 14
