@@ -2,6 +2,9 @@ name: Build standalone Windows exe
 
 on:
   workflow_dispatch: {}
+  push:
+    branches: [claude/funny-darwin-u40b22]
+    paths: [".github/workflows/build-exe.yml"]
 
 jobs:
   build:
