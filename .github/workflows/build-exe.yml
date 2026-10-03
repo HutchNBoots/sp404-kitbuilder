@@ -33,14 +33,22 @@ jobs:
             --add-data "src/kitbuilder/categories.yaml;kitbuilder" `
             scripts/pyinstaller_entry.py
 
-      - name: Smoke test the exe
+      - name: Build rackbuilder.exe
+        run: |
+          pyinstaller --onefile --name rackbuilder `
+            scripts/pyinstaller_rackbuilder_entry.py
+
+      - name: Smoke test the exes
         run: |
           .\dist\kitbuilder.exe --help
+          .\dist\rackbuilder.exe --help
 
       - uses: actions/upload-artifact@v4
         with:
           name: kitbuilder-windows-exe
-          path: dist/kitbuilder.exe
+          path: |
+            dist/kitbuilder.exe
+            dist/rackbuilder.exe
           retention-days: 14
 
       # Publishes to a GitHub Release so the exe is a plain browser download —
@@ -50,10 +58,12 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: windows-exe
-          name: kitbuilder.exe (Windows, standalone)
+          name: kitbuilder.exe + rackbuilder.exe (Windows, standalone)
           body: >
             Auto-built by .github/workflows/build-exe.yml from commit
             ${{ github.sha }}. No install needed — download kitbuilder.exe
-            and run it directly.
-          files: dist/kitbuilder.exe
+            and/or rackbuilder.exe and run them directly.
+          files: |
+            dist/kitbuilder.exe
+            dist/rackbuilder.exe
           prerelease: true

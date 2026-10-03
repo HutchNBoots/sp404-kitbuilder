@@ -79,8 +79,9 @@ def build_parser() -> argparse.ArgumentParser:
         "(default: the manifest's own folder is searched)",
     )
     build_p.add_argument(
-        "--template", default=str(DEFAULT_TEMPLATE),
-        help=f"One-pad Drum Rack .adg saved from Live (default: {DEFAULT_TEMPLATE})",
+        "--template", default=None,
+        help=f"One-pad Drum Rack .adg saved from Live (default: {DEFAULT_TEMPLATE}, "
+        f"or {DEFAULT_TEMPLATE.name} in the current folder)",
     )
     build_p.add_argument("--out", default="ableton_racks", help="Output folder (default: ableton_racks)")
     build_p.add_argument(
@@ -99,9 +100,32 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _default_template() -> str:
+    """templates\\pad_template.adg, or pad_template.adg sitting right next
+    to where rackbuilder is run (simplest for the double-click exe)."""
+    if not DEFAULT_TEMPLATE.is_file() and Path(DEFAULT_TEMPLATE.name).is_file():
+        return DEFAULT_TEMPLATE.name
+    return str(DEFAULT_TEMPLATE)
+
+
 def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
-    return args.func(args)
+    raw_argv = sys.argv[1:] if argv is None else argv
+    double_clicked = argv is None and not raw_argv
+    # Bare `rackbuilder` (or double-clicking rackbuilder.exe) means `build`
+    # with every default.
+    if not raw_argv or raw_argv[0] not in ("build", "-h", "--help"):
+        raw_argv = ["build", *raw_argv]
+    args = build_parser().parse_args(raw_argv)
+    if args.command == "build" and args.template is None:
+        args.template = _default_template()
+    code = args.func(args)
+    if double_clicked:
+        # Keep the console window open so the result can be read.
+        try:
+            input("\nPress Enter to close...")
+        except EOFError:
+            pass
+    return code
 
 
 if __name__ == "__main__":

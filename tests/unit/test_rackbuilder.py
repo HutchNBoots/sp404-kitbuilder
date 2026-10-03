@@ -204,3 +204,13 @@ def test_resolve_sample_from_windows_path(tmp_path):
 def test_safe_folder_name():
     assert safe_folder_name('Drum Bundle — Sugar') == "Drum Bundle — Sugar"
     assert safe_folder_name('A/B:C?') == "A_B_C_"
+
+
+def test_bare_rackbuilder_defaults_to_build_and_finds_template_in_cwd(source_dir, config, tmp_path, monkeypatch):
+    from rackbuilder.cli import main
+
+    _export(source_dir, config, tmp_path, {"Tiny Pack"})
+    write_template(tmp_path / "pad_template.adg")
+    monkeypatch.chdir(tmp_path)
+    assert main([]) == 0
+    assert (tmp_path / "ableton_racks" / "Tiny Pack" / "Tiny Pack.adg").is_file()
