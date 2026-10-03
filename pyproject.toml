@@ -22,6 +22,7 @@ build = ["pyinstaller>=6.0"]
 
 [project.scripts]
 kitbuilder = "kitbuilder.cli:main"
+rackbuilder = "rackbuilder.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

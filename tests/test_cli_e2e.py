@@ -169,3 +169,34 @@ def test_no_kits_checked_is_a_noop(source_dir, tmp_path):
     assert export.returncode == 0, export.stderr
     assert "nothing to export" in export.stdout.lower()
     assert not export_dir.exists()
+
+
+def test_rackbuilder_build_from_export(source_dir, adg_template, tmp_path):
+    out_dir = tmp_path / "kitbuilder_out"
+    export_dir = tmp_path / "sp404_kits"
+    assert run_cli("scan", "--source", str(source_dir), "--out", str(out_dir)).returncode == 0
+    assert run_cli("report", "--in", str(out_dir)).returncode == 0
+    assert run_cli("export", "--in", str(out_dir), "--out", str(export_dir)).returncode == 0
+
+    racks = tmp_path / "ableton_racks"
+    result = subprocess.run(
+        [sys.executable, "-m", "rackbuilder", "build",
+         "--manifest", str(export_dir / "export_manifest.csv"),
+         "--template", str(adg_template), "--out", str(racks)],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert (racks / "build_manifest.csv").exists()
+    adgs = list(racks.glob("*/*.adg"))
+    assert adgs and all((a.parent / "Samples" / "Imported" / a.parent.name).is_dir() for a in adgs)
+
+
+def test_rackbuilder_missing_template_exits_cleanly(tmp_path):
+    manifest = tmp_path / "export_manifest.csv"
+    manifest.write_text("kit,bank,pad,category,source_path,exported_path,converted,project\n")
+    result = subprocess.run(
+        [sys.executable, "-m", "rackbuilder", "build", "--manifest", str(manifest),
+         "--template", str(tmp_path / "nope.adg")],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 2 and "Template not found" in result.stderr

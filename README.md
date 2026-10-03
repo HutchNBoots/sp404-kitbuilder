@@ -261,3 +261,47 @@ this repo (or `pip install`) there and run `kitbuilder scan --source
   so with a small library the same melodic sample can legitimately end up
   filling a slot in several kits. A real Splice library has enough variety
   that this mostly won't come up in practice.
+
+## Ableton racks for Push 3 standalone (`rackbuilder`)
+
+A second command, installed by the same `pip install -e .`, turns the kits
+`kitbuilder export` produced into Ableton Drum Rack presets (`.adg`) — one
+per kit — with the samples collected next to each preset so it can be sent
+to a Push 3 running standalone. Full design: `ableton-push3-rack-builder-spec.md`.
+
+```
+rackbuilder build --manifest .\sp404_kits\export_manifest.csv ^
+                  --template .\templates\pad_template.adg ^
+                  --out .\ableton_racks
+```
+
+Those are also the defaults, so a plain `rackbuilder build` run from the
+same folder as `kitbuilder` works. Output, per kit:
+
+```
+ableton_racks\<Kit>\<Kit>.adg
+ableton_racks\<Kit>\Samples\Imported\<Kit>\01_Kick.wav ...
+ableton_racks\build_manifest.csv
+```
+
+Pads keep the SP-404 order: pad 1 (always the Kick) is on C1 / MIDI 36,
+bottom-left on Push, then upward one note per pad. Options: `--kits A B`
+/ `--exclude A B` to pick kits, `--base-note N`, `--samples-root DIR` if
+the exported wavs have moved, `--dry-run`.
+
+### One-time setup in Live (12.4.6)
+
+1. **Template.** Make a Drum Rack, drag **any one sample** onto a single
+   pad (the Simpler needs a sample in it; rackbuilder swaps it out), and
+   save the rack as `templates\pad_template.adg` in this folder.
+2. **Calibration reference.** Drag 2–3 samples onto that rack, save it,
+   and run *File > Collect All and Save*. Keep that folder (don't commit
+   it). Open its `.adg` (gzipped XML — rename to `.gz` and extract) and
+   compare a pad's `FileRef` (`RelativePathType`, `RelativePath`) and
+   `ZoneSettings/ReceivingNote` with what `rackbuilder` wrote. The values
+   rackbuilder uses live in `src/rackbuilder/calibration.py`, and are not
+   yet confirmed against a real Live file. `--relative-path-type` overrides
+   the first one without editing code.
+3. **Prove one kit.** Build one kit (`--kits "<Kit>"`), add its folder to
+   your User Library, drag it onto Push 3 from Live's Browser over Wi-Fi,
+   and check every pad plays before building the rest.

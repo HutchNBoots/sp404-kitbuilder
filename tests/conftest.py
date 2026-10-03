@@ -15,3 +15,10 @@ def source_dir() -> Path:
 @pytest.fixture
 def config() -> dict:
     return load_config(None)
+
+
+@pytest.fixture
+def adg_template(tmp_path) -> Path:
+    from ableton_fixture import write_template
+
+    return write_template(tmp_path / "templates" / "pad_template.adg")
