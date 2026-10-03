@@ -3,7 +3,7 @@ name: Build standalone Windows exe
 on:
   workflow_dispatch: {}
   push:
-    branches: [main]
+    branches: [main, claude/dazzling-clarke-ul4wkl]
     paths:
       - ".github/workflows/build-exe.yml"
       - "src/**"
